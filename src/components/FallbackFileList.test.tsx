@@ -45,4 +45,39 @@ describe('FallbackFileList', () => {
     await waitFor(() => expect(screen.queryByText('report.docx')).not.toBeInTheDocument())
     expect(screen.getByText('invoice.pdf')).toBeInTheDocument()
   })
+
+  it('dismissing the native picker is a no-op, no unhandled rejection', async () => {
+    const abortError = Object.assign(new Error('cancelled'), { name: 'AbortError' })
+    directoryOpen.mockRejectedValueOnce(abortError)
+    render(<FallbackFileList />)
+
+    await userEvent.click(screen.getByRole('button', { name: /select folder/i }))
+
+    expect(screen.getByRole('button', { name: /select folder/i })).toBeInTheDocument()
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+  })
+
+  it('shows a scanning indicator while directoryOpen() is pending', async () => {
+    let resolveOpen!: (files: File[]) => void
+    directoryOpen.mockReturnValueOnce(new Promise((resolve) => (resolveOpen = resolve)))
+    render(<FallbackFileList />)
+
+    await userEvent.click(screen.getByRole('button', { name: /select folder/i }))
+    expect(await screen.findByText(/scanning/i)).toBeInTheDocument()
+
+    resolveOpen([fakeFile('a.pdf', 'a.pdf')])
+    await waitFor(() => expect(screen.queryByText(/scanning/i)).not.toBeInTheDocument())
+    expect(screen.getAllByText('a.pdf').length).toBeGreaterThan(0)
+  })
+
+  it('pressing / focuses the search box once files are listed', async () => {
+    directoryOpen.mockResolvedValueOnce([fakeFile('a.pdf', 'a.pdf')])
+    render(<FallbackFileList />)
+    await userEvent.click(screen.getByRole('button', { name: /select folder/i }))
+    await waitFor(() => expect(screen.getByRole('searchbox')).toBeInTheDocument())
+
+    await userEvent.keyboard('/')
+
+    expect(screen.getByRole('searchbox')).toHaveFocus()
+  })
 })

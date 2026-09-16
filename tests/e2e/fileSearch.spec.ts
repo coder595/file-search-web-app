@@ -10,15 +10,15 @@ test.describe('File Search — Chrome/Edge path (mocked File System Access API)'
 
     await app.selectFolder()
     await expect(page.getByRole('button', { name: 'Refresh' })).toBeVisible()
-    await expect(page.getByRole('row')).toHaveCount(4) // 2 top-level files + 1 subfolder + 1 nested file
+    await expect(app.rows).toHaveCount(4) // 2 top-level files + 1 subfolder + 1 nested file
 
     await app.search('invoice')
-    await expect(page.getByRole('row')).toHaveCount(2)
+    await expect(app.rows).toHaveCount(2)
 
     await app.extensionInput.fill('pdf')
-    await expect(page.getByRole('row')).toHaveCount(2)
+    await expect(app.rows).toHaveCount(2)
 
-    await page.getByRole('row', { name: /invoice_2026_march\.pdf/ }).click()
+    await app.listbox.getByRole('option', { name: /invoice_2026_march\.pdf/ }).click()
     await expect(app.toast).toContainText(/copied/i)
   })
 
@@ -41,7 +41,7 @@ test.describe('File Search — Chrome/Edge path (mocked File System Access API)'
     await expect(page.getByRole('button', { name: 'Refresh' })).toBeVisible()
 
     await app.refreshButton.click()
-    await expect(page.getByRole('row')).toHaveCount(4)
+    await expect(app.rows).toHaveCount(4)
   })
 
   test('reopening the tab restores the cached index instantly, with no re-scan', async ({ page }) => {
@@ -50,13 +50,13 @@ test.describe('File Search — Chrome/Edge path (mocked File System Access API)'
     await app.goto()
     await app.selectFolder()
     await expect(page.getByRole('button', { name: 'Refresh' })).toBeVisible()
-    await expect(page.getByRole('row')).toHaveCount(4)
+    await expect(app.rows).toHaveCount(4)
 
     await page.reload()
 
     // Instant restore: results appear without clicking Select Folder again.
     await expect(page.getByRole('button', { name: 'Refresh' })).toBeVisible()
-    await expect(page.getByRole('row')).toHaveCount(4)
+    await expect(app.rows).toHaveCount(4)
   })
 
   test('reopening with permission not yet granted shows Resume access, not a broken restore', async ({
@@ -78,7 +78,28 @@ test.describe('File Search — Chrome/Edge path (mocked File System Access API)'
 
     await app.resumeAccessButton.click()
     await expect(page.getByRole('button', { name: 'Refresh' })).toBeVisible()
-    await expect(page.getByRole('row')).toHaveCount(4)
+    await expect(app.rows).toHaveCount(4)
+  })
+
+  test('/ focuses search, arrows navigate results, Enter copies the selected path', async ({ page }) => {
+    await installMockFileSystem(page, SAMPLE_TREE)
+    const app = new FileSearchPage(page)
+    await app.goto()
+    await app.selectFolder()
+    await expect(page.getByRole('button', { name: 'Refresh' })).toBeVisible()
+
+    await page.keyboard.press('/')
+    await expect(app.searchBox).toBeFocused()
+    await app.searchBox.fill('invoice')
+    await expect(app.rows).toHaveCount(2)
+
+    await app.listbox.focus()
+    await expect(app.rows.first()).toHaveAttribute('aria-selected', 'true')
+    await page.keyboard.press('ArrowDown')
+    await expect(app.rows.nth(1)).toHaveAttribute('aria-selected', 'true')
+    await page.keyboard.press('Enter')
+
+    await expect(app.toast).toContainText(/copied/i)
   })
 
   test('no network request ever fires while scanning and searching', async ({ page }) => {
@@ -92,7 +113,7 @@ test.describe('File Search — Chrome/Edge path (mocked File System Access API)'
     const app = new FileSearchPage(page)
     await app.goto()
     await app.selectFolder()
-    await expect(page.getByRole('row')).toHaveCount(4)
+    await expect(app.rows).toHaveCount(4)
     await app.search('invoice')
 
     expect(requests).toEqual([])

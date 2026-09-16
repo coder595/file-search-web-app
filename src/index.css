@@ -1,5 +1,9 @@
 @import 'tailwindcss';
 
+/* Class-strategy dark mode: useTheme() toggles .dark on <html>, defaulting
+   to prefers-color-scheme (plan.md Section 24). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 html,
 body,
 #root {
@@ -8,4 +12,5 @@ body,
 
 body {
   margin: 0;
+  @apply bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100;
 }

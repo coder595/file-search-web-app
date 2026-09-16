@@ -25,3 +25,16 @@ class WorkerStub {
   terminate() {}
 }
 ;(globalThis as unknown as { Worker: typeof WorkerStub }).Worker = WorkerStub
+
+// jsdom has no matchMedia. Default to "no preference" (light); tests that
+// care about a specific OS preference override this locally (see
+// useTheme.test.ts, ThemeToggle.test.tsx).
+if (!window.matchMedia) {
+  window.matchMedia = (query: string) =>
+    ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }) as unknown as MediaQueryList
+}

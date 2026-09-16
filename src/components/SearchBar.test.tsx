@@ -33,4 +33,15 @@ describe('SearchBar', () => {
     )
     expect(screen.getByRole('searchbox')).toHaveAttribute('placeholder', expect.stringMatching(/search/i))
   })
+
+  it('pressing / focuses the search box', async () => {
+    const { deps } = makeFakeDeps()
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <SearchBar />
+      </FileSearchStoreProvider>,
+    )
+    await userEvent.keyboard('/')
+    expect(screen.getByRole('searchbox')).toHaveFocus()
+  })
 })

@@ -2,8 +2,8 @@ import type { ChangeEvent } from 'react'
 import { useFileSearchStore } from '../store/FileSearchStoreProvider'
 import type { QueryFilters } from '../lib/types'
 
-const labelClass = 'flex flex-col gap-1 text-xs font-medium text-gray-600'
-const inputClass = 'rounded border border-gray-300 px-2 py-1 text-sm'
+const labelClass = 'flex flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-400'
+const inputClass = 'rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
 
 export function FiltersPanel() {
   const filters = useFileSearchStore((s) => s.filters)

@@ -26,6 +26,18 @@ and Safari have no plans to support it.
 This is a hard platform limitation, not a design choice — see `plan.md`
 Section 4.
 
+## Keyboard shortcuts
+
+- `/` — focus the search box (works in both Chrome/Edge and the Firefox/Safari fallback)
+- `↑` / `↓` — move the selection in the results list
+- `Home` / `End` — jump to the first / last result
+- `Enter` — copy the selected result's path (same as clicking it)
+
+## Dark mode
+
+Follows your OS preference by default; click the toggle in the header to
+override it. Your choice is remembered across reloads.
+
 ## Setup
 
 ```bash

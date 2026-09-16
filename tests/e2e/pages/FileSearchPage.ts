@@ -8,6 +8,7 @@ export class FileSearchPage {
   readonly searchBox: Locator
   readonly extensionInput: Locator
   readonly rows: Locator
+  readonly listbox: Locator
   readonly toast: Locator
 
   constructor(page: Page) {
@@ -17,7 +18,8 @@ export class FileSearchPage {
     this.refreshButton = page.getByRole('button', { name: 'Refresh' })
     this.searchBox = page.getByRole('searchbox')
     this.extensionInput = page.getByLabel('Extension')
-    this.rows = page.getByRole('row')
+    this.listbox = page.getByRole('listbox')
+    this.rows = this.listbox.getByRole('option')
     this.toast = page.getByRole('status')
   }
 
