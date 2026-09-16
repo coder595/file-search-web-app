@@ -25,3 +25,17 @@
 **Effort:** S
 **Priority:** P2
 **Depends on:** None
+
+## Feature
+
+### Glob-pattern ignore rules (`*.log`, `build-*`, `.gitignore` import)
+
+**What:** Extend ignore patterns from exact directory-name match to glob support, and/or read the scanned folder's real `.gitignore`.
+
+**Why:** Explicitly scoped out of Phase 3 (plan.md Section 25) — exact-name match against a fixed list covers the stated roadmap line without a new dependency, but can't express `*.log`, `build-*`, or versioned cache-dir patterns. Flagged during the outside-voice review as a likely near-term feature request.
+
+**Context:** The gold-standard approach (what ripgrep/fd do) is real `.gitignore`-glob matching via a micromatch/minimatch-style library, reading the actual `.gitignore` from the scanned root. That's a bigger scope jump than this roadmap line asked for — revisit only if real usage shows the exact-match list is insufficient.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** None

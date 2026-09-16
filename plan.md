@@ -346,18 +346,54 @@ Phase 2 scope per Section 15: keyboard nav, dark mode, fallback UX polish (copy 
 - `fileSearchStore.ts`'s `isAbortError` pattern — reused verbatim for the fallback cancel-handling fix.
 - Tailwind v4 (installed Phase 0) — dark mode needs zero new dependencies.
 
+## 25. Phase 3 Design Decisions (from `/plan-eng-review`)
+
+Phase 3 scope per Section 15/10: ignore patterns — skip noisy directories (`node_modules`, `.git`, build output, caches, venvs) during the scan so they never pollute results.
+
+**Match strategy (Architecture Issue 1A):**
+- Exact directory-name match against a fixed `Set<string>`, checked only when `handle.kind === 'directory'` — a file literally named `dist` (no extension) must NOT be skipped. No new dependency.
+- Default list: `node_modules, .git, dist, build, .next, .turbo, .venv, venv, __pycache__, target, .cache, coverage`.
+- Rejected: full `.gitignore`-glob matching (the ripgrep/fd gold standard) — more scope than this roadmap line asks for; `*.log`/`build-*`-style patterns are an explicit, accepted v1 gap (outside-voice finding 7), likely to surface as a future feature request, not a blocker.
+
+**Walk semantics (`walk.ts`) — correctness requirements surfaced by outside-voice review, not tradeoffs:**
+- The skip check must short-circuit **before** the entry is yielded, not just before recursion — `walkDirectory` currently yields every entry unconditionally, then recurses if it's a directory (outside-voice finding 1). Guarding only the recursive call would still leak the ignored directory into search results with empty children. An early `continue` on a matched directory name, right after computing `entryPath`, is required.
+- A new `WalkEvent` variant, `{ type: 'ignored'; path: string }`, distinct from the existing `{ type: 'skipped'; path: string }` (permission-denied). Conflating the two would show "1200 folders skipped" for directories the user deliberately excluded, indistinguishable from real access errors (outside-voice finding 4). `ScanController` tracks `ignored` as its own counter alongside `scanned`/`skipped`, and `scan-complete` carries all three.
+
+**Apply timing (Architecture Issue 1B):**
+- Editing the ignore-pattern list does not auto-trigger a re-scan; it takes effect the next time the user clicks **Refresh** — preserves the Phase 1 invariant "Refresh is the only action that triggers a full re-scan."
+- The list must be snapshotted to a plain array/Set and passed **by value** into `scan()` → `walkDirectory()` at the moment Refresh (or the initial scan) is triggered — never read live off a mutable ref during an in-flight walk (outside-voice finding 3). This is what makes "only applies on next Refresh" actually true, not just true by convention.
+
+**State ownership (Code Quality Issue 2A, corrected by outside-voice finding 5):**
+- `fileSearchStore.ts` (a vanilla, non-React Zustand store) is what posts the `scan` message to the worker — it cannot depend on a React hook's value. So the ignore-pattern list lives in **store state** (`ignorePatterns: string[]`), not in a `useTheme()`-style hook.
+- What *does* mirror `useTheme()`: the persistence mechanism — a small pure module (`src/lib/ignorePatterns.ts`) with `DEFAULT_IGNORE_PATTERNS`, `readStoredIgnorePatterns()` (localStorage, falls back to the default), and `saveIgnorePatterns()`, the same read/fallback/write shape as `readInitialTheme()`/`applyTheme()`. The store initializes `ignorePatterns` from `readStoredIgnorePatterns()` and exposes a `setIgnorePatterns()` action that updates state and persists — `startScan()` reads `get().ignorePatterns` when it posts the `scan` message.
+
+**UI placement (Code Quality Issue 2B):**
+- New section inside `FiltersPanel.tsx`, visually separated from the instant query-time filters above it, with a "Click Refresh to apply" caption.
+- Ignored-folder count surfaces next to the existing "N folders skipped (no permission)" note in `FolderPicker.tsx`, as its own distinct phrase (e.g. "N folders ignored") — not merged into the same counter (outside-voice finding 4).
+
+### Phase 3 NOT in scope
+- Full `.gitignore`-glob matching (`*.log`, `build-*`, nested-path patterns) — accepted v1 gap; exact directory-name match only (Architecture Issue 1A).
+- A visible "scanned with different ignore rules than currently configured" affordance on reload — `restore()` (page-reload path) is untouched by ignore patterns by design (only `scan()` applies them), so a user who edits the list, reloads, and gets the stale cached scan sees no prompt that Refresh is still needed (outside-voice finding 6). Accepted: the existing "Click Refresh to apply" hint in FiltersPanel is the only signal; this is a first-reload-after-edit edge case, not a correctness bug, and adding reload-time diffing is more machinery than the roadmap line justifies.
+- Per-pattern enable/disable toggle, pattern import/export, or a "restore defaults" button — a flat editable list (add/remove) is enough for the stated use case.
+
+### Phase 3 what already exists
+- `useTheme()`'s localStorage read/fallback/write shape (`src/lib/useTheme.ts`) — reused as the pattern for `src/lib/ignorePatterns.ts`'s persistence functions, not the hook itself (state ownership differs — see above).
+- `walk.ts`'s existing `NotAllowedError` → `{ type: 'skipped' }` handling — the new `{ type: 'ignored' }` event follows the same generator-yield shape, just a different trigger.
+- `ScanController`'s generation-counter cancellation — untouched; threading a by-value ignore-set through `scan()`/`walkDirectory()` doesn't interact with it (outside-voice: no findings on this scheme).
+- `FiltersPanel.tsx`'s existing `labelClass`/`inputClass` styling primitives and layout — reused for the new ignore-list section, no new component.
+
 ## GSTACK REVIEW REPORT
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | not run |
-| Outside Review | Claude subagent (native fallback — Codex not authenticated) | Independent 2nd opinion | 2 | completed | Phase 1: 8 findings, all resolved. Phase 2: 8 findings (selection-state lifecycle, scroll/refresh conflict, click-vs-Enter action model, ARIA role-on-button footgun, arrow-key scope guard, fallback shortcut parity, dark-mode scope sizing, roadmap-priority question), all resolved with the user |
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 2 | CLEAR | Phase 1: 11 issues, 0 critical gaps. Phase 2: 6 issues, 0 critical gaps. All resolved and folded into plan.md (Sections 5/7/8 for Phase 1, Section 24 for Phase 2) |
+| Outside Review | Claude subagent (native fallback — Codex not authenticated) | Independent 2nd opinion | 3 | completed | Phase 1: 8 findings, all resolved. Phase 2: 8 findings, all resolved. Phase 3: 7 findings (yield-before-skip ordering bug, missing directory-only-match guard, ignore-list-must-snapshot-by-value, ignored/skipped counter conflation, vanilla-store-can't-read-a-React-hook architecture gap, reload-time staleness gap, accepted exact-match scope gap), all resolved and folded into plan.md |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 3 | CLEAR | Phase 1: 11 issues, 0 critical gaps. Phase 2: 6 issues, 0 critical gaps. Phase 3: 2 issues (match strategy, apply timing), 0 critical gaps. All resolved and folded into plan.md (Sections 5/7/8 for Phase 1, Section 24 for Phase 2, Section 25 for Phase 3) |
 | Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | not run |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | not run |
 
-**OUTSIDE COVERAGE:** Codex CLI is installed but not authenticated (`CODEX_MODE: not_authed`) on both passes — fell back to a Claude subagent with fresh context per the skill's documented fallback. Same harness as this review; model identity is not independently verifiable, so treat this as an independent *read* rather than a true cross-model check. Phase 2's pass surfaced real gaps the native review missed: an unowned `selectedIndex` lifecycle (stale/out-of-bounds selection risk), a debounced-search-vs-scroll-to-follow conflict, and a `role="option"` on a native `<button>` accessibility footgun — all verified against the actual code and fixed in Section 24.
+**OUTSIDE COVERAGE:** Codex CLI is installed but not authenticated (`CODEX_MODE: not_authed`) on all three passes — fell back to a Claude subagent with fresh context per the skill's documented fallback. Same harness as this review; model identity is not independently verifiable, so treat this as an independent *read* rather than a true cross-model check. Phase 3's pass caught a real correctness bug the native review missed entirely: `walk.ts` yields an entry before checking whether it's a directory to recurse into, so a skip check placed only at the recursion site (the "natural" spot) would still leak ignored directories into results — the fix requires an early `continue` before the yield. It also caught that the store, being a vanilla non-React Zustand store, cannot consume a `useTheme()`-shaped React hook directly, correcting the initial Code Quality recommendation before any code was written.
 
-**VERDICT:** ENG CLEARED (Phase 1 + Phase 2 plans) — ready to implement Phase 2. CEO/Design/DX reviews not run (optional; not required for this scope).
+**VERDICT:** ENG CLEARED (Phase 1 + Phase 2 + Phase 3 plans) — ready to implement Phase 3. CEO/Design/DX reviews not run (optional; not required for this scope).
 
 NO UNRESOLVED DECISIONS

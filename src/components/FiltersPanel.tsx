@@ -1,4 +1,4 @@
-import type { ChangeEvent } from 'react'
+import { useState, type ChangeEvent, type KeyboardEvent } from 'react'
 import { useFileSearchStore } from '../store/FileSearchStoreProvider'
 import type { QueryFilters } from '../lib/types'
 
@@ -8,6 +8,22 @@ const inputClass = 'rounded border border-gray-300 px-2 py-1 text-sm dark:border
 export function FiltersPanel() {
   const filters = useFileSearchStore((s) => s.filters)
   const setFilters = useFileSearchStore((s) => s.setFilters)
+  const ignorePatterns = useFileSearchStore((s) => s.ignorePatterns)
+  const setIgnorePatterns = useFileSearchStore((s) => s.setIgnorePatterns)
+  const [newPattern, setNewPattern] = useState('')
+
+  function addPattern(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== 'Enter') return
+    const value = newPattern.trim()
+    if (value && !ignorePatterns.includes(value)) {
+      setIgnorePatterns([...ignorePatterns, value])
+    }
+    setNewPattern('')
+  }
+
+  function removePattern(pattern: string) {
+    setIgnorePatterns(ignorePatterns.filter((p) => p !== pattern))
+  }
 
   function numberField(key: 'minSize' | 'maxSize') {
     return (e: ChangeEvent<HTMLInputElement>) => {
@@ -91,6 +107,40 @@ export function FiltersPanel() {
           <option value="lastModified">Date modified</option>
         </select>
       </label>
+
+      <div className="flex basis-full flex-col gap-1 border-t border-gray-200 pt-3 dark:border-gray-700">
+        <label htmlFor="ignore-pattern-input" className="text-xs font-medium text-gray-600 dark:text-gray-400">
+          Ignore folders
+        </label>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {ignorePatterns.map((pattern) => (
+            <span
+              key={pattern}
+              className="flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            >
+              {pattern}
+              <button
+                type="button"
+                aria-label={`Remove ${pattern}`}
+                onClick={() => removePattern(pattern)}
+                className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-100"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          <input
+            id="ignore-pattern-input"
+            aria-label="Add ignore pattern"
+            className={inputClass}
+            value={newPattern}
+            onChange={(e) => setNewPattern(e.target.value)}
+            onKeyDown={addPattern}
+            placeholder="folder name…"
+          />
+        </div>
+        <p className="text-xs text-gray-400 dark:text-gray-500">Click Refresh to apply</p>
+      </div>
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { createStore } from 'zustand/vanilla'
 import { checkPermission as defaultCheckPermission, requestPermission as defaultRequestPermission } from '../lib/permission'
 import { clearCache as defaultClearCache, loadEntries as defaultLoadEntries, loadRootHandle as defaultLoadRootHandle, saveEntries as defaultSaveEntries, saveRootHandle as defaultSaveRootHandle } from '../lib/db'
 import { isFileSystemAccessSupported } from '../lib/browserSupport'
+import { readStoredIgnorePatterns, saveIgnorePatterns } from '../lib/ignorePatterns'
 import type { IndexEntry, QueryFilters } from '../lib/types'
 import type { WorkerOutMessage } from '../workers/scanController'
 
@@ -41,13 +42,16 @@ export interface FileSearchState {
   rootHandle?: FileSystemDirectoryHandle
   progress: { scanned: number; skipped: number }
   skippedFolders: number
+  ignoredFolders: number
   results: IndexEntry[]
   filters: QueryFilters
+  ignorePatterns: string[]
   init: () => Promise<void>
   selectFolder: () => Promise<void>
   resumeAccess: () => Promise<void>
   refresh: () => Promise<void>
   setFilters: (partial: Partial<QueryFilters>) => void
+  setIgnorePatterns: (patterns: string[]) => void
 }
 
 function isAbortError(err: unknown): boolean {
@@ -73,6 +77,7 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
           status: 'ready',
           progress: { scanned: msg.scanned, skipped: msg.skipped },
           skippedFolders: msg.skipped,
+          ignoredFolders: msg.ignored,
         })
         void deps.saveEntries(msg.entries)
         postQuery(get().filters)
@@ -90,7 +95,7 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
 
     async function startScan(handle: FileSystemDirectoryHandle) {
       set({ status: 'scanning', rootHandle: handle, progress: { scanned: 0, skipped: 0 } })
-      worker.postMessage({ type: 'scan', root: handle })
+      worker.postMessage({ type: 'scan', root: handle, ignorePatterns: get().ignorePatterns })
     }
 
     return {
@@ -98,8 +103,10 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
       rootHandle: undefined,
       progress: { scanned: 0, skipped: 0 },
       skippedFolders: 0,
+      ignoredFolders: 0,
       results: [],
       filters: DEFAULT_FILTERS,
+      ignorePatterns: readStoredIgnorePatterns(),
 
       async init() {
         if (!deps.isSupported()) {
@@ -154,6 +161,11 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
         set({ filters })
         if (debounceTimer) clearTimeout(debounceTimer)
         debounceTimer = setTimeout(() => postQuery(filters), DEBOUNCE_MS)
+      },
+
+      setIgnorePatterns(patterns) {
+        saveIgnorePatterns(patterns)
+        set({ ignorePatterns: patterns })
       },
     }
   })

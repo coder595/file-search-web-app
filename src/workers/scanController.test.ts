@@ -107,6 +107,23 @@ describe('ScanController', () => {
     ])
   })
 
+  it('counts ignored folders separately from scanned and permission-skipped entries', async () => {
+    const posted: unknown[] = []
+    const controller = new ScanController((msg) => posted.push(msg))
+    const root = dir('root', [dir('node_modules', [file('pkg.json')]), file('kept.txt')])
+
+    await controller.scan(root as unknown as FileSystemDirectoryHandle, new Set(['node_modules']))
+
+    const complete = posted.find((m) => (m as { type: string }).type === 'scan-complete') as {
+      scanned: number
+      skipped: number
+      ignored: number
+      entries: { name: string }[]
+    }
+    expect(complete).toMatchObject({ scanned: 1, skipped: 0, ignored: 1 })
+    expect(complete.entries.map((e) => e.name)).toEqual(['kept.txt'])
+  })
+
   it('counts skipped folders separately from scanned entries', async () => {
     const posted: unknown[] = []
     const controller = new ScanController((msg) => posted.push(msg))

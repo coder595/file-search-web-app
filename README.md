@@ -52,6 +52,16 @@ Section 4.
 Follows your OS preference by default; click the toggle in the header to
 override it. Your choice is remembered across reloads.
 
+## Ignore patterns
+
+Skip noisy folders (build output, dependency caches) during a scan. Comes
+with a sensible default list (`node_modules`, `.git`, `dist`, `build`,
+`.next`, `.turbo`, `.venv`, `venv`, `__pycache__`, `target`, `.cache`,
+`coverage`) — add or remove folder names in the "Ignore folders" section of
+the filters panel. Matches exact directory names only (no glob patterns like
+`*.log`); changes take effect the next time you click **Refresh**, same as
+any other re-scan. Your list is remembered across reloads.
+
 ## Setup
 
 ```bash

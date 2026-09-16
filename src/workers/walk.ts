@@ -1,6 +1,9 @@
 import type { IndexEntry } from '../lib/types'
 
-export type WalkEvent = { type: 'entry'; entry: IndexEntry } | { type: 'skipped'; path: string }
+export type WalkEvent =
+  | { type: 'entry'; entry: IndexEntry }
+  | { type: 'skipped'; path: string }
+  | { type: 'ignored'; path: string }
 
 function isNotAllowedError(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'NotAllowedError'
@@ -45,13 +48,18 @@ async function toIndexEntry(
 export async function* walkDirectory(
   dir: FileSystemDirectoryHandle,
   path = '',
+  ignoreNames?: Set<string>,
 ): AsyncGenerator<WalkEvent> {
   try {
     for await (const [name, handle] of dir.entries()) {
       const entryPath = path ? `${path}/${name}` : name
+      if (handle.kind === 'directory' && ignoreNames?.has(name)) {
+        yield { type: 'ignored', path: entryPath }
+        continue
+      }
       yield { type: 'entry', entry: await toIndexEntry(handle, entryPath) }
       if (handle.kind === 'directory') {
-        yield* walkDirectory(handle, entryPath)
+        yield* walkDirectory(handle, entryPath, ignoreNames)
       }
     }
   } catch (err) {

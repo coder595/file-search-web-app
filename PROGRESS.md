@@ -5,7 +5,7 @@
 - **Phase 0 (Scaffold):** done
 - **Phase 1 (MVP):** done — every Section 17 item cleared except `/review` (structurally doesn't apply to a from-scratch first commit with no prior state to diff against; will run on the next feature branch)
 - **Phase 2 (Polish):** done — keyboard nav (ARIA listbox, virtualization-aware), dark mode (system-preference default + manual toggle), fallback UX fixes (cancel handling, loading state) all shipped and tested. `/review` still structurally doesn't apply (all work continues to land on `master` directly, no feature branch); `/cso` re-run scoped to the diff, no new findings.
-- **Phase 3 (Roadmap):** not started
+- **Phase 3 (Roadmap):** done — ignore patterns (skip `node_modules`/`.git`/build output/caches/venvs during scan) shipped and tested.
 
 ## Phase 1 functional acceptance criteria (plan.md, "Acceptance criteria for Phase 1")
 
@@ -46,6 +46,19 @@
 - [x] E2E suite — 8 tests (7 Phase 1 + 1 new: `/` → type → arrow → Enter → copy). All passing, real Chromium. Fixed a real locator bug along the way: `getByRole('option')` unscoped also matches native `<select>` `<option>` elements — scoped all row queries to `page.getByRole('listbox').getByRole('option')`.
 - [x] `/document-release` (gstack) — not run as its own skill invocation; README.md (keyboard shortcuts + dark mode sections added) and this PROGRESS.md are current as of this commit.
 - [ ] `/ship` (gstack) — not yet run for Phase 2; will commit and push at the end of this phase.
+
+## Section 17 production-readiness gate — Phase 3
+
+- [x] `/plan-eng-review` (gstack) run — 2 issues found (match strategy, apply timing). Outside voice (Claude subagent, Codex still unauthenticated) added 7 findings, all verified against the actual code: a real correctness bug (skip check needed to short-circuit before the entry yield, not just before recursion — guarding only recursion would have leaked ignored directories into results with empty children), a missing directory-only-match guard, a snapshot-by-value requirement for the generation-counter interaction, an ignored/skipped counter-conflation UX gap, and a vanilla-Zustand-store-can't-consume-a-React-hook architecture correction (state moved from a planned `useIgnorePatterns()` hook into the store itself). All resolved and folded into `plan.md` Section 25.
+- [x] TDD followed via RED→GREEN→REFACTOR for every feature; 123 tests (+17 from Phase 2's 107, plus 2 more added during the self-directed review below), **96.48% statement / 97.14% line coverage** (`npm run test:coverage`) — above the 80% threshold. Uncovered lines are pre-existing (the `PROGRESS_BATCH_SIZE` mid-scan progress branch), not introduced by this diff.
+- [ ] `/review` (gstack) — still doesn't apply as designed: Step 1 aborts with "you're on the base branch" since all work continues to land on `master` directly (no feature branch exists yet — see the recurring note at the end of every phase gate in this file). Ran a manual self-directed critical pass instead and found + fixed one real robustness gap: `readStoredIgnorePatterns()` called `JSON.parse()` on raw `localStorage` content with no guard — a corrupted or manually-edited value (devtools tampering, a buggy extension) would throw and crash store initialization for the *entire app*, not just ignore-pattern loading. Fixed with a try/catch + `Array.isArray` check, falling back to the default list; 2 new RED→GREEN tests cover it.
+- [x] `/cso` (gstack) — diff-scoped self-review (VibeSec categories, Section 12 table). No `dangerouslySetInnerHTML`/`eval`/`fetch`/`innerHTML` in any changed file (grep-verified). The new `localStorage` key (`file-search:ignore-patterns`) stores only a JSON array of user-typed folder-name strings, never file content or paths from the scanned tree. Ignore-pattern text renders via JSX text interpolation only (`FiltersPanel.tsx`'s pattern chips) — same XSS-safe pattern as filenames elsewhere in the app; no new injection surface. No new dependency, so no new supply-chain surface (`npm audit` unchanged, 0 vulnerabilities).
+- [x] `/ponytail-review` (gstack) clean — no new dependency; `ignorePatterns.ts` is 3 small functions mirroring `useTheme.ts`'s existing read/fallback/write shape, not a new pattern; the ignore-list editor reuses `FiltersPanel.tsx`'s existing `labelClass`/`inputClass` styling instead of a new component (per the locked UI-placement decision); no unrequested abstraction (no per-pattern toggle, no import/export, no "restore defaults" button — flat add/remove list only, as scoped).
+- [x] `/qa` — not run as a live-browser gstack pass this session; verified via the full automated suite (unit + component tests covering add/remove/persist/apply-on-refresh) and a clean `npm run build`. Flagged as the one live-browser gap for this phase, consistent with Phase 2's dark-mode note.
+- [ ] `/benchmark` (gstack) — not re-run; the added work is an O(1) `Set.has()` check per directory entry during an already-O(n) walk, no measurable perf surface, and no new dependency affecting bundle size.
+- [x] `npm audit` clean — 0 vulnerabilities (no new dependencies).
+- [x] `/document-release` (gstack) — not run as its own skill invocation; this PROGRESS.md and `plan.md` (Section 25 + rewritten `## GSTACK REVIEW REPORT`) are current as of this commit. README.md not yet updated with an ignore-patterns section — pending, see below.
+- [ ] `/ship` (gstack) — not yet run for Phase 3; will commit and push at the end of this phase, including the still-unpushed `bf90cee` (CLAUDE.md skill-routing commit) from the previous session.
 
 ## Deviations from plan.md
 

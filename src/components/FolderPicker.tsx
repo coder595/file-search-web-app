@@ -4,11 +4,13 @@ export function FolderPicker() {
   const status = useFileSearchStore((s) => s.status)
   const progress = useFileSearchStore((s) => s.progress)
   const skippedFolders = useFileSearchStore((s) => s.skippedFolders)
+  const ignoredFolders = useFileSearchStore((s) => s.ignoredFolders)
   const selectFolder = useFileSearchStore((s) => s.selectFolder)
   const resumeAccess = useFileSearchStore((s) => s.resumeAccess)
   const refresh = useFileSearchStore((s) => s.refresh)
 
   const skippedNote = skippedFolders > 0 ? ` — ${skippedFolders} folders skipped (no permission)` : ''
+  const ignoredNote = ignoredFolders > 0 ? ` — ${ignoredFolders} folders ignored` : ''
 
   return (
     <div className="flex items-center gap-3">
@@ -48,7 +50,7 @@ export function FolderPicker() {
             Refresh
           </button>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {progress.scanned.toLocaleString()} files{skippedNote}
+            {progress.scanned.toLocaleString()} files{skippedNote}{ignoredNote}
           </p>
         </>
       )}

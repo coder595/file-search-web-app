@@ -66,4 +66,26 @@ describe('FiltersPanel', () => {
     expect(screen.getByLabelText(/modified after/i)).toHaveAttribute('type', 'date')
     expect(screen.getByLabelText(/modified before/i)).toHaveAttribute('type', 'date')
   })
+
+  it('shows the default ignore patterns and a hint that changes need Refresh', () => {
+    renderPanel()
+    expect(screen.getByText('node_modules')).toBeInTheDocument()
+    expect(screen.getByText('.git')).toBeInTheDocument()
+    expect(screen.getByText(/click refresh to apply/i)).toBeInTheDocument()
+  })
+
+  it('adding a pattern updates the list and does not post a scan message', async () => {
+    const { worker } = renderPanel()
+    await userEvent.type(screen.getByLabelText(/add ignore pattern/i), 'my-cache{enter}')
+
+    expect(screen.getByText('my-cache')).toBeInTheDocument()
+    expect(worker.posted.some((m) => m.type === 'scan')).toBe(false)
+  })
+
+  it('removing a pattern takes it off the list', async () => {
+    renderPanel()
+    await userEvent.click(screen.getByRole('button', { name: /remove node_modules/i }))
+
+    expect(screen.queryByText('node_modules')).not.toBeInTheDocument()
+  })
 })

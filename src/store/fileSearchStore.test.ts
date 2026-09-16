@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_IGNORE_PATTERNS } from '../lib/ignorePatterns'
 import type { IndexEntry, QueryFilters } from '../lib/types'
 import { makeFakeDeps as makeDeps } from '../test/fakeFileSearchDeps'
 import { createFileSearchStore } from './fileSearchStore'
@@ -6,6 +7,7 @@ import { createFileSearchStore } from './fileSearchStore'
 describe('createFileSearchStore', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    localStorage.clear()
   })
 
   it('starts in the empty state when there is no cached root handle', async () => {
@@ -94,7 +96,7 @@ describe('createFileSearchStore', () => {
 
     expect(deps.saveRootHandle).toHaveBeenCalledWith(handle)
     expect(store.getState().status).toBe('scanning')
-    expect(worker.posted).toContainEqual({ type: 'scan', root: handle })
+    expect(worker.posted).toContainEqual({ type: 'scan', root: handle, ignorePatterns: DEFAULT_IGNORE_PATTERNS })
   })
 
   it('dismissing the native picker is a no-op, staying on the empty state', async () => {
@@ -130,10 +132,11 @@ describe('createFileSearchStore', () => {
     await store.getState().init()
     await store.getState().selectFolder()
 
-    worker.emit({ type: 'scan-complete', scanned: 1, skipped: 2, entries })
+    worker.emit({ type: 'scan-complete', scanned: 1, skipped: 2, ignored: 3, entries })
 
     expect(store.getState().status).toBe('ready')
     expect(store.getState().skippedFolders).toBe(2)
+    expect(store.getState().ignoredFolders).toBe(3)
     expect(deps.saveEntries).toHaveBeenCalledWith(entries)
   })
 
@@ -175,7 +178,41 @@ describe('createFileSearchStore', () => {
 
     await store.getState().refresh()
 
-    expect(worker.posted).toContainEqual({ type: 'scan', root: handle })
+    expect(worker.posted).toContainEqual({ type: 'scan', root: handle, ignorePatterns: DEFAULT_IGNORE_PATTERNS })
     expect(store.getState().status).toBe('scanning')
+  })
+
+  it('starts with ignorePatterns from localStorage, falling back to the default list', async () => {
+    const { deps } = makeDeps()
+    const store = createFileSearchStore(deps)
+    await store.getState().init()
+    expect(store.getState().ignorePatterns).toEqual(DEFAULT_IGNORE_PATTERNS)
+  })
+
+  it('setIgnorePatterns() updates state and persists to localStorage, without triggering a re-scan', async () => {
+    const handle = {} as FileSystemDirectoryHandle
+    const { worker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle) })
+    const store = createFileSearchStore(deps)
+    await store.getState().init()
+    worker.posted.length = 0
+
+    store.getState().setIgnorePatterns(['node_modules'])
+
+    expect(store.getState().ignorePatterns).toEqual(['node_modules'])
+    expect(localStorage.getItem('file-search:ignore-patterns')).toBe(JSON.stringify(['node_modules']))
+    expect(worker.posted.some((m) => m.type === 'scan')).toBe(false)
+  })
+
+  it('refresh() after setIgnorePatterns() sends the newly-set list, not the stale default', async () => {
+    const handle = {} as FileSystemDirectoryHandle
+    const { worker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle) })
+    const store = createFileSearchStore(deps)
+    await store.getState().init()
+    store.getState().setIgnorePatterns(['dist'])
+    worker.posted.length = 0
+
+    await store.getState().refresh()
+
+    expect(worker.posted).toContainEqual({ type: 'scan', root: handle, ignorePatterns: ['dist'] })
   })
 })

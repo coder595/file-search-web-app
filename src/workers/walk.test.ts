@@ -28,9 +28,9 @@ function dir(name: string, children: Handle[] | (() => never)): DirHandle {
   }
 }
 
-async function collect(root: DirHandle) {
+async function collect(root: DirHandle, ignoreNames?: Set<string>) {
   const events = []
-  for await (const event of walkDirectory(root as unknown as FileSystemDirectoryHandle)) {
+  for await (const event of walkDirectory(root as unknown as FileSystemDirectoryHandle, '', ignoreNames)) {
     events.push(event)
   }
   return events
@@ -86,5 +86,36 @@ describe('walkDirectory', () => {
     })
     const root = dir('root', [broken])
     await expect(collect(root)).rejects.toThrow('disk read error')
+  })
+
+  it('skips a directory whose name matches an ignore pattern, without yielding it or its children', async () => {
+    const root = dir('root', [
+      dir('node_modules', [file('pkg.json')]),
+      file('kept.txt'),
+    ])
+    const events = await collect(root, new Set(['node_modules']))
+    expect(events).toContainEqual({ type: 'ignored', path: 'node_modules' })
+    const paths = events
+      .filter((e) => e.type === 'entry')
+      .map((e) => (e as { entry: { path: string } }).entry.path)
+    expect(paths).toEqual(['kept.txt'])
+  })
+
+  it('does not skip a file whose name matches an ignore pattern — directories only', async () => {
+    const root = dir('root', [file('dist'), file('kept.txt')])
+    const events = await collect(root, new Set(['dist']))
+    const paths = events
+      .filter((e) => e.type === 'entry')
+      .map((e) => (e as { entry: { path: string } }).entry.path)
+    expect(paths).toEqual(['dist', 'kept.txt'])
+  })
+
+  it('with no ignore set, behaves exactly as before (default empty)', async () => {
+    const root = dir('root', [dir('node_modules', [file('pkg.json')])])
+    const events = await collect(root)
+    const paths = events
+      .filter((e) => e.type === 'entry')
+      .map((e) => (e as { entry: { path: string } }).entry.path)
+    expect(paths).toEqual(['node_modules', 'node_modules/pkg.json'])
   })
 })

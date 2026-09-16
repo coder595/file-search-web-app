@@ -26,7 +26,9 @@ describe('FolderPicker', () => {
     )
     await userEvent.click(await screen.findByRole('button', { name: /select folder/i }))
 
-    await waitFor(() => expect(worker.posted).toContainEqual({ type: 'scan', root: handle }))
+    await waitFor(() =>
+      expect(worker.posted).toContainEqual(expect.objectContaining({ type: 'scan', root: handle })),
+    )
     expect(await screen.findByText(/scanned/i)).toBeInTheDocument()
   })
 
@@ -55,7 +57,9 @@ describe('FolderPicker', () => {
     worker.posted.length = 0
     await userEvent.click(refreshButton)
 
-    await waitFor(() => expect(worker.posted).toContainEqual({ type: 'scan', root: handle }))
+    await waitFor(() =>
+      expect(worker.posted).toContainEqual(expect.objectContaining({ type: 'scan', root: handle })),
+    )
   })
 
   it('shows a skipped-folders note when some subfolders were inaccessible', async () => {
@@ -67,8 +71,23 @@ describe('FolderPicker', () => {
       </FileSearchStoreProvider>,
     )
     await userEvent.click(await screen.findByRole('button', { name: /select folder/i }))
-    worker.emit({ type: 'scan-complete', scanned: 5, skipped: 2, entries: [] })
+    worker.emit({ type: 'scan-complete', scanned: 5, skipped: 2, ignored: 0, entries: [] })
 
     expect(await screen.findByText(/2 folders skipped/i)).toBeInTheDocument()
+  })
+
+  it('shows an ignored-folders note, distinct from the skipped-folders note', async () => {
+    const handle = {} as FileSystemDirectoryHandle
+    const { deps, worker } = makeFakeDeps({ showDirectoryPicker: async () => handle })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: /select folder/i }))
+    worker.emit({ type: 'scan-complete', scanned: 5, skipped: 0, ignored: 3, entries: [] })
+
+    expect(await screen.findByText(/3 folders ignored/i)).toBeInTheDocument()
+    expect(screen.queryByText(/folders skipped/i)).not.toBeInTheDocument()
   })
 })

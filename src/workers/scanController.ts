@@ -7,7 +7,7 @@ import { walkDirectory } from './walk'
 
 export type WorkerOutMessage =
   | { type: 'progress'; scanned: number; skipped: number }
-  | { type: 'scan-complete'; scanned: number; skipped: number; entries: IndexEntry[] }
+  | { type: 'scan-complete'; scanned: number; skipped: number; ignored: number; entries: IndexEntry[] }
   | { type: 'query-result'; entries: IndexEntry[] }
 
 const PROGRESS_BATCH_SIZE = 200
@@ -28,22 +28,25 @@ export class ScanController {
     this.post = post
   }
 
-  async scan(root: FileSystemDirectoryHandle): Promise<void> {
+  async scan(root: FileSystemDirectoryHandle, ignoreNames?: Set<string>): Promise<void> {
     const myGeneration = ++this.generation
     this.searchIndex.clear()
 
     let scanned = 0
     let skipped = 0
+    let ignored = 0
     let sinceYield = 0
 
-    for await (const event of walkDirectory(root)) {
+    for await (const event of walkDirectory(root, '', ignoreNames)) {
       if (myGeneration !== this.generation) return // superseded by a newer scan
 
       if (event.type === 'entry') {
         this.searchIndex.add(event.entry)
         scanned++
-      } else {
+      } else if (event.type === 'skipped') {
         skipped++
+      } else {
+        ignored++
       }
 
       if (++sinceYield >= PROGRESS_BATCH_SIZE) {
@@ -54,7 +57,7 @@ export class ScanController {
     }
 
     if (myGeneration !== this.generation) return
-    this.post({ type: 'scan-complete', scanned, skipped, entries: this.searchIndex.values() })
+    this.post({ type: 'scan-complete', scanned, skipped, ignored, entries: this.searchIndex.values() })
   }
 
   /**
