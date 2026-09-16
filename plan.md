@@ -307,18 +307,57 @@ Synthesized from this review's findings. Each task derives from a specific findi
   - Files: `index.html` or Vite config
   - Verify: n/a — tracked in TODOS.md, not required for Phase 1
 
+## 24. Phase 2 Design Decisions (from `/plan-eng-review`)
+
+Phase 2 scope per Section 15: keyboard nav, dark mode, fallback UX polish (copy path already shipped in Phase 1).
+
+**Keyboard navigation (`VirtualizedEntryTable.tsx`):**
+- Selection lives as `selectedIndex` React state, not DOM focus/tabIndex — virtualized rows off-screen don't exist in the DOM.
+- **Lifecycle:** `selectedIndex` resets to `0` whenever the `entries` array reference changes (any new search/filter/scan result). `virtualizer.scrollToIndex()` is called *only* from inside the ArrowUp/ArrowDown/Home/End handlers themselves — never from an effect watching `entries` — so a debounced search-as-you-type refresh never causes the list to jump; only an actual keypress does.
+- **Action model:** Enter on the selected row does exactly what a click does — copies the path. No separate "selected but not acted on" state; the row has exactly one action today (preview/open are unbuilt Phase 3+ items), so a select-vs-act distinction is unneeded ceremony.
+- **Element/role:** rows change from `<button role="row">` to a non-interactive `<div role="option">` with `onClick`/`onKeyDown`. Overriding a native `<button>`'s implicit role with an explicit ARIA role is a known assistive-tech inconsistency. The container becomes `role="listbox"` with `tabIndex={0}`, driving `aria-activedescendant` — the standard pattern for a keyboard-navigable virtualized list.
+- **Arrow-key scope:** list-navigation arrow keys are handled by the container's own `onKeyDown`, which only fires when the container itself has DOM focus — mutually exclusive with a `<select>`/`<input>` in `FiltersPanel.tsx` having focus, so no explicit allowlist/activeElement guard is needed; it's correct by construction.
+
+**Global "/" search-focus shortcut:**
+- Fires only when no input/textarea currently has focus (must not hijack typing in the extension/size/date filter fields, or re-trigger oddly while already in the search box).
+- Applies to **both** `SearchBar.tsx` (live/Chrome-Edge path) and `FallbackFileList.tsx`'s own inline search input (Firefox/Safari path) — App.tsx renders exactly one depending on browser support, and both should feel consistent.
+
+**Dark mode:**
+- Tailwind v4 class-strategy override (`@custom-variant dark (&:where(.dark, .dark *));` in `index.css`) layered on top of the default system-preference behavior.
+- A `useTheme()` hook reads `localStorage`, falling back to `matchMedia('(prefers-color-scheme: dark)')` when unset; toggling flips a `.dark` class on `<html>` and persists the choice.
+- **Scope note:** this is a full `dark:` variant pass across every rendered component (`App.tsx`, `FolderPicker.tsx`, `SearchBar.tsx`, `FiltersPanel.tsx`, `VirtualizedEntryTable.tsx`, `UnsupportedBanner.tsx`, `FallbackFileList.tsx`) — none currently have any `dark:` classes. The toggle mechanism is the small part; the styling pass is the bulk of the diff.
+
+**Fallback UX polish (`FallbackFileList.tsx`):**
+- Fix an existing Phase 1 bug: `pickFolder()` has no try/catch around `directoryOpen()`, so cancelling the native picker throws an unhandled rejection. Fixed with the same `isAbortError` pattern already used in `fileSearchStore.ts`'s `selectFolder()`.
+- Add a "Scanning…" loading state while `directoryOpen()` is pending (no incremental count possible — unlike the live worker path, `browser-fs-access` resolves all-at-once).
+
+**Acknowledged, not changed:** the outside-voice pass raised a strategic question — is dark mode (aesthetic, zero usage signal on a one-commit-old app) the right thing to schedule ahead of ignore-pattern support (Section 10, affects real scan noise on `node_modules`/`.git`)? Decision: proceed with Phase 2 as already scoped in Section 15; ignore-patterns remains a Phase 3 candidate per Section 10's "picks based on real usage."
+
+### Phase 2 NOT in scope
+- Multi-select/range-select — single-select matches copy-path being the only action.
+- Keyboard shortcuts beyond `/`, arrows, Home/End, Enter — Section 10 names exactly these.
+- Theming beyond light/dark (no accent-color picker, no high-contrast mode).
+- Multi-tab sync, ignore-patterns — separate Section 10 items, not bundled into this phase.
+- A shared `isAbortError`-catch helper — only two call sites exist after this phase; not worth abstracting yet (noted so a third picker entry point doesn't reintroduce the bug a third time).
+
+### Phase 2 what already exists
+- `VirtualizedEntryTable.tsx` already renders both live and fallback results — keyboard nav built once here benefits both paths with zero duplication.
+- `FolderPicker.tsx`'s "Scanned N files…" progress-text pattern — reused verbatim for the new fallback loading state.
+- `fileSearchStore.ts`'s `isAbortError` pattern — reused verbatim for the fallback cancel-handling fix.
+- Tailwind v4 (installed Phase 0) — dark mode needs zero new dependencies.
+
 ## GSTACK REVIEW REPORT
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | not run |
-| Outside Review | Claude subagent (native fallback — Codex not authenticated) | Independent 2nd opinion | 1 | completed | 8 findings (A-H), all presented as cross-model tension and resolved with the user |
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 11 issues, 0 critical gaps (all resolved and folded into plan.md) |
+| Outside Review | Claude subagent (native fallback — Codex not authenticated) | Independent 2nd opinion | 2 | completed | Phase 1: 8 findings, all resolved. Phase 2: 8 findings (selection-state lifecycle, scroll/refresh conflict, click-vs-Enter action model, ARIA role-on-button footgun, arrow-key scope guard, fallback shortcut parity, dark-mode scope sizing, roadmap-priority question), all resolved with the user |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 2 | CLEAR | Phase 1: 11 issues, 0 critical gaps. Phase 2: 6 issues, 0 critical gaps. All resolved and folded into plan.md (Sections 5/7/8 for Phase 1, Section 24 for Phase 2) |
 | Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | not run |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | not run |
 
-**OUTSIDE COVERAGE:** Codex CLI is installed but not authenticated (`CODEX_MODE: not_authed`) — fell back to a Claude subagent with fresh context per the skill's documented fallback. Same harness as this review; model identity is not independently verifiable, so treat this as an independent *read* rather than a true cross-model check. It surfaced 8 findings the native review missed, most notably a verified browser-spec bug (`requestPermission()` requires user activation, confirmed against MDN) and a fallback-mode data-model gap — both real, both fixed in plan.md.
+**OUTSIDE COVERAGE:** Codex CLI is installed but not authenticated (`CODEX_MODE: not_authed`) on both passes — fell back to a Claude subagent with fresh context per the skill's documented fallback. Same harness as this review; model identity is not independently verifiable, so treat this as an independent *read* rather than a true cross-model check. Phase 2's pass surfaced real gaps the native review missed: an unowned `selectedIndex` lifecycle (stale/out-of-bounds selection risk), a debounced-search-vs-scroll-to-follow conflict, and a `role="option"` on a native `<button>` accessibility footgun — all verified against the actual code and fixed in Section 24.
 
-**VERDICT:** ENG CLEARED — ready to implement. CEO/Design/DX reviews not run (optional; not required to proceed to Phase 0 scaffolding for this scope).
+**VERDICT:** ENG CLEARED (Phase 1 + Phase 2 plans) — ready to implement Phase 2. CEO/Design/DX reviews not run (optional; not required for this scope).
 
 NO UNRESOLVED DECISIONS
