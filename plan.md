@@ -294,7 +294,7 @@ Synthesized from this review's findings. Each task derives from a specific findi
   - Surfaced by: Failure Modes — critical gap (clipboard write has no specified error handling)
   - Files: `src/components/ResultsList.tsx`
   - Verify: test clipboard failure path shows a toast, not silent failure
-- [ ] **T6 (P2)** — perf — `/benchmark` pass isolating FlexSearch rebuild-from-cache time at 10k–50k entries
+- [x] **T6 (P2)** — perf — `/benchmark` pass isolating FlexSearch rebuild-from-cache time at 10k–50k entries — **done:** 79ms at 10k, 329ms at 50k (design ceiling). "Instant" holds at typical scale, softens but stays sub-second at the top of the range. See `.gstack/benchmark-reports/2026-09-16-benchmark.md`.
   - Surfaced by: Performance Issue 4A
   - Files: n/a (measurement task, part of Section 17 gate)
   - Verify: rebuild time reported and reviewed against "instant" claim in Section 8 item 8
