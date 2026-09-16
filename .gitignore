@@ -13,6 +13,8 @@ dist-ssr
 coverage
 playwright-report
 test-results
+portable-build
+file-search-web-app-*.zip
 *.local
 
 # Editor directories and files

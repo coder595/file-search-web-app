@@ -8,6 +8,20 @@ See [`plan.md`](./plan.md) for the full project plan, architecture, and
 production-readiness gate. See [`PROGRESS.md`](./PROGRESS.md) for current
 build status.
 
+## Just want to run it? (no build step)
+
+Grab the latest portable zip from [Releases](../../releases) (or build one
+yourself: `./scripts/package-portable.sh`), unzip it anywhere on Linux,
+macOS, or Windows, then:
+
+- **Linux/macOS:** `./run.sh`
+- **Windows:** double-click `run.bat`
+
+Open `http://localhost:8080` in Chrome or Edge. That's it — no `npm install`,
+no Node.js required for the app itself (the run script just needs Python or
+Node already on your machine to serve the static files; a browser can't load
+JS modules from a plain `file://` path).
+
 ## Browser support
 
 This app relies on the **File System Access API** (`showDirectoryPicker()`),
@@ -80,3 +94,7 @@ Browser Tab
 
 No file content or path is ever sent over the network — everything above runs
 entirely client-side.
+
+## License
+
+[MIT](./LICENSE)
