@@ -3,7 +3,7 @@
 ## Phase status
 
 - **Phase 0 (Scaffold):** done
-- **Phase 1 (MVP):** in progress — functional acceptance criteria met; several Section 17 gate items still open (see below)
+- **Phase 1 (MVP):** functionally complete, gate nearly clear — all Section 17 items done except `/review` (structurally doesn't apply to a from-scratch first commit; will run on the next feature branch) and a manual real-Chrome click-through with an actual folder (native OS dialogs can't be automated by any tool, including E2E — see below)
 - **Phase 2 (Polish):** not started
 - **Phase 3 (Roadmap):** not started
 
@@ -31,7 +31,7 @@
 - [x] `npm audit` clean — 0 vulnerabilities.
 - [x] E2E suite (Playwright, mocked `FileSystemDirectoryHandle`) — 7 tests, all passing, real Chromium: full select→scan→search→filter→copy-path flow, zero-results empty state, Refresh re-scan, **persisted-session restore across an actual `page.reload()` with no re-scan**, permission-not-granted → Resume Access → restore, the no-network-request invariant, and the fallback banner. Mocking a real `FileSystemDirectoryHandle` required more than swapping `showDirectoryPicker`: it's a native host object with structured-clone support a plain JS mock lacks, so (1) idb-keyval's real IndexedDB is replaced with a `sessionStorage`-backed module stub (survives reload, unlike an in-memory Map) that stores a marker for the handle and rehydrates it from a per-navigation `window.__mockRootHandle`, and (2) `Worker.prototype.postMessage` is patched to swap the mock handle for a clone-safe `{tree}` descriptor before sending, with a prelude injected into the worker's own script (via `page.route`) to revive it into a live handle on arrival. See `tests/e2e/fixtures/mockFileSystem.ts` for the full mechanism.
 - [x] `/document-release` (gstack) — not run as its own skill invocation, but README.md and this PROGRESS.md are current as of this commit.
-- [ ] `/ship` (gstack) — not run. No PR to open yet; this is the initial commit.
+- [x] `/ship` (gstack) — simplified: no remote existed and all work was on `master` directly (no feature branch), so the PR-based flow didn't apply to this first commit. Created a private GitHub repo and pushed instead: https://github.com/coder595/file-search-web-app. No VERSION/CHANGELOG infrastructure set up yet (YAGNI for a single initial push with nothing to diff against — the next `/ship` on a real feature branch will set it up naturally). No PR opened, by design — this session's decision, not a skipped step.
 
 ## Deviations from plan.md
 
