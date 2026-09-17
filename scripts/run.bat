@@ -14,7 +14,10 @@ echo File Search - starting a local server on http://localhost:%PORT%
 echo Open that URL in Chrome or Edge. Press Ctrl+C to stop.
 echo.
 
-where python >nul 2>nul
+REM `where python` can find the Windows 11 "App Execution Alias" stub at
+REM ...\WindowsApps\python.exe, which exists even with no real Python
+REM installed and just pops the Microsoft Store instead of running anything.
+where python 2>nul | findstr /v /i "\WindowsApps\" >nul
 if %ERRORLEVEL% EQU 0 (
   python -m http.server %PORT%
   goto :eof
