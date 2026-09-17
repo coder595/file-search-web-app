@@ -42,6 +42,8 @@ All directory walking and searching happens in a single dedicated Web Worker (`s
 
 The worker message contract (`WorkerInMessage`/`WorkerOutMessage`) is the seam between `src/store/fileSearchStore.ts` and `scan.worker.ts` — read both together when changing it.
 
+**Ignore patterns** (`src/lib/ignorePatterns.ts`) skip whole directories *during the walk*, not as a post-hoc query filter — `walk.ts` checks each directory name against the set before recursing into it, so an ignored folder is never indexed at all (see the `scanned`/`skipped`/`ignored` counts in `scan-complete`). The pattern list is exact-name matching only (no globs), persisted in `localStorage` independent of the IndexedDB-cached index, and flows store → `scan` worker message → `walk.ts` on every scan/refresh.
+
 ### Store and dependency injection (`src/store/`)
 
 `fileSearchStore.ts` is a vanilla Zustand store (not the React-hook `create()`) that orchestrates the worker, `src/lib/db.ts` (IndexedDB via `idb-keyval`), and `src/lib/permission.ts` (the File System Access permission flow). Every browser-API dependency is injected via a `FileSearchDeps` object (`createWorker`, `showDirectoryPicker`, `checkPermission`, `loadRootHandle`, etc.) with `defaultFileSearchDeps` as the real implementation. `FileSearchStoreProvider.tsx` provides one shared store instance via React context and calls `init()` on mount.
@@ -57,6 +59,10 @@ Because rows are virtualized, off-screen entries don't exist in the DOM, so sele
 ### E2E mocking (`tests/e2e/fixtures/mockFileSystem.ts`)
 
 Native OS folder-picker dialogs cannot be automated by any tool (Playwright included), so E2E tests mock `window.showDirectoryPicker`. This requires more than a plain object: a real `FileSystemDirectoryHandle` is a browser host object with structured-clone support a mock object lacks, so it can't cross `postMessage` to the real worker or round-trip through real `IndexedDB`. The fixture works around both: `Worker.prototype.postMessage` is patched to swap the mock handle for a clone-safe `{tree}` descriptor before sending (revived by a prelude injected into the worker's own script via `page.route`), and idb-keyval's module is replaced with a `sessionStorage`-backed stub (survives `page.reload()`, unlike an in-memory `Map`, since each navigation is a fresh JS realm).
+
+### Portable build (`scripts/package-portable.sh`)
+
+Zips `dist/` plus `scripts/run.sh`/`run.bat` into a build that needs no `npm install` — just Python or Node already on the machine to serve the static files (a browser refuses to load ES modules from `file://`). `run.bat` must not rely on a bare `where python` check: Windows 11 ships a `python.exe` App Execution Alias stub on `PATH` (`...\WindowsApps\python.exe`) that exists even with no real Python installed and just opens the Microsoft Store instead of running anything — the script filters that path out before trusting the match.
 
 ## Process notes
 
