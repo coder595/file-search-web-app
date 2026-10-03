@@ -26,6 +26,32 @@
 **Priority:** P2
 **Depends on:** None
 
+### Header-based CSP for the scan worker
+
+**What:** Serve a `Content-Security-Policy` HTTP header (not just the build's `<meta>` tag) so the scan worker is fenced too.
+
+**Why:** A worker loaded from a URL takes its CSP from its own response headers, not the page's meta tag (MDN, "CSP in workers"). The Phase 4 meta CSP (`connect-src 'none'`) therefore doesn't apply inside `scan.worker.ts`, the code that touches file data. The worker makes no network calls today (grep-verified), so this is defense in depth.
+
+**Pros:** "no network egress" becomes runtime-enforced everywhere. **Cons:** `python -m http.server` can't send custom headers, so `scripts/run.sh`/`run.bat` would need a small custom handler.
+
+**Context:** Start in `scripts/run.sh` + `run.bat`. A hosted deploy (IMPROVEMENT_PLAN F4) would set it via platform headers instead.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** Phase 4 C1 (meta CSP)
+
+### TypeScript 7 / @types/node 26 major bump
+
+**What:** Upgrade `typescript` ~6.0 → 7 and `@types/node` 24 → 26.
+
+**Why:** Explicitly deferred from IMPROVEMENT_PLAN A3: a major compiler bump is its own decision, not routine upkeep.
+
+**Context:** Needs owner approval before starting. Run `npm run build` (tsc -b) and the full suite after the bump.
+
+**Effort:** S–M
+**Priority:** P3
+**Depends on:** None
+
 ## Feature
 
 ### Glob-pattern ignore rules (`*.log`, `build-*`, `.gitignore` import)
