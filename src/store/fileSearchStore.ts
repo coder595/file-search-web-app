@@ -145,6 +145,10 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
         if (status !== 'restoring') return
         set({ status: 'ready' })
         postQuery()
+      } else if (msg.type === 'query-error') {
+        // A failed query is not fatal: keep status and results; free the slot so the next query can go out.
+        console.error('Search query failed', msg.message)
+        resetQueries()
       } else if (msg.type === 'error') {
         resetQueries()
         set({ status: 'error', error: msg.message })

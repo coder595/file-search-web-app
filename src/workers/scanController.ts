@@ -11,6 +11,7 @@ export type WorkerOutMessage =
   | { type: 'query-result'; entries: IndexEntry[] }
   | { type: 'restore-complete'; count: number }
   | { type: 'error'; message: string; scanId?: number }
+  | { type: 'query-error'; message: string }
 
 const PROGRESS_BATCH_SIZE = 200
 
@@ -97,7 +98,7 @@ export class ScanController {
         .filter((entry) => matchesFilters(entry, effective))
       this.post({ type: 'query-result', entries: sortEntries(matched, filters.sort) })
     } catch (err) {
-      this.post({ type: 'error', message: errorMessage(err) })
+      this.post({ type: 'query-error', message: errorMessage(err) })
     }
   }
 }

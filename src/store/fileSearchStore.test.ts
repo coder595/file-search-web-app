@@ -595,6 +595,30 @@ describe('createFileSearchStore', () => {
     })
   })
 
+  describe('query-error is non-fatal [review]', () => {
+    it('keeps status scanning, still applies the later scan-complete, and allows the next query', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const handle = {} as FileSystemDirectoryHandle
+      const { worker, deps } = makeDeps({ showDirectoryPicker: vi.fn().mockResolvedValue(handle) })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await store.getState().selectFolder()
+      worker.emit({ type: 'progress', scanned: 1, skipped: 0 }) // query in flight
+
+      worker.emit({ type: 'query-error', message: 'search blew up' })
+      expect(store.getState()).toMatchObject({ status: 'scanning', error: undefined })
+      expect(spy).toHaveBeenCalled()
+
+      const queriesBefore = worker.posted.filter((m) => m.type === 'query').length
+      worker.emit({ type: 'progress', scanned: 2, skipped: 0 }) // would be coalesced if flag not reset
+      expect(worker.posted.filter((m) => m.type === 'query').length).toBe(queriesBefore + 1)
+
+      worker.emit({ type: 'scan-complete', scanned: 2, skipped: 0, ignored: 0, entries: [] })
+      expect(store.getState().status).toBe('ready')
+      spy.mockRestore()
+    })
+  })
+
   describe('review hardening [B2 fix wave]', () => {
     const handle = {} as FileSystemDirectoryHandle
     const quota = Object.assign(new Error('full'), { name: 'QuotaExceededError' })

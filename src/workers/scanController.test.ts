@@ -284,6 +284,6 @@ describe('ScanController.restore', () => {
     const posted: unknown[] = []
     const controller = new ScanController((msg) => posted.push(msg))
     expect(() => controller.query(null as never)).not.toThrow()
-    expect(posted).toEqual([{ type: 'error', message: expect.any(String) as string }])
+    expect(posted).toEqual([{ type: 'query-error', message: expect.any(String) as string }])
   })
 })
