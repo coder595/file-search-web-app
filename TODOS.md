@@ -54,6 +54,20 @@
 
 ## Feature
 
+### Skip entries that vanish mid-scan instead of failing the whole scan
+
+**What:** In `src/workers/walk.ts`, treat a per-entry `NotFoundError` (file or folder deleted while the walk runs) like `NotAllowedError`: skip it and keep walking.
+
+**Why:** Found by the Phase 4 silent-failure review. Today any non-`NotAllowedError` aborts the whole scan. Since Phase 4 B3 that failure is visible (error state + Retry), but a folder with churny temp files can fail repeatedly.
+
+**Pros:** Large live folders scan reliably. **Cons:** Needs care to still abort when the ROOT itself is gone (that should stay an error, not "0 files").
+
+**Context:** `walk.ts` `isNotAllowedError` + the `skipped` event; add a test with a handle whose `getFile()` rejects with `NotFoundError`.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
 ### Glob-pattern ignore rules (`*.log`, `build-*`, `.gitignore` import)
 
 **What:** Extend ignore patterns from exact directory-name match to glob support, and/or read the scanned folder's real `.gitignore`.
