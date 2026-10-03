@@ -117,7 +117,7 @@ export function FiltersPanel() {
           {ignorePatterns.map((pattern) => (
             <span
               key={pattern}
-              className="flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200"
+              className="flex items-center gap-0.5 rounded bg-gray-100 py-0.5 pl-2 pr-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200"
             >
               {pattern}
               <button
