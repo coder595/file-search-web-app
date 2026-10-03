@@ -163,10 +163,10 @@ export function VirtualizedEntryTable({ entries }: { entries: IndexEntry[] }) {
                   {item.name}
                 </span>
                 <span className="min-w-0 flex-[2] truncate text-gray-500 dark:text-gray-400">{item.path}</span>
-                <span className="w-16 shrink-0 text-right text-gray-500 dark:text-gray-400">
+                <span className="w-16 shrink-0 text-right max-sm:hidden text-gray-500 dark:text-gray-400">
                   {formatSize(item.size)}
                 </span>
-                <span className="w-24 shrink-0 text-right text-gray-500 dark:text-gray-400">
+                <span className="w-24 shrink-0 text-right max-sm:hidden text-gray-500 dark:text-gray-400">
                   {formatDate(item.lastModified)}
                 </span>
               </div>

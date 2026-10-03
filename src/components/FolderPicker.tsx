@@ -55,7 +55,7 @@ export function FolderPicker() {
   const ignoredNote = ignoredFolders > 0 ? ` — ${ignoredFolders} folders ignored` : ''
 
   return (
-    <div ref={wrapperRef} tabIndex={-1} className="flex items-center gap-3 outline-none">
+    <div ref={wrapperRef} tabIndex={-1} className="flex flex-wrap items-center gap-3 outline-none">
       {status === 'empty' && (
         <button
           ref={selectRef}
