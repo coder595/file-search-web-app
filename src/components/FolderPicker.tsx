@@ -1,5 +1,5 @@
-import { useRef } from 'react'
-import { useFileSearchStore } from '../store/useFileSearchStore'
+import { useContext, useRef, useState } from 'react'
+import { FileSearchStoreContext, useFileSearchStore } from '../store/useFileSearchStore'
 
 export function FolderPicker() {
   const status = useFileSearchStore((s) => s.status)
@@ -17,9 +17,31 @@ export function FolderPicker() {
   // The clicked button unmounts when status changes; park focus on the wrapper
   // (before awaiting) so it doesn't fall back to <body> (WCAG 2.4.3).
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const selectRef = useRef<HTMLButtonElement>(null)
+  const store = useContext(FileSearchStoreContext)
   const keepFocus = (action: () => Promise<void>) => () => {
     wrapperRef.current?.focus()
-    void action()
+    void action().then(() => {
+      // Picker cancelled: status unchanged, so give focus back to the button.
+      if (store?.getState().status === 'empty') selectRef.current?.focus()
+    })
+  }
+
+  // Screen readers hear transitions only ("Scanning…", "Scan complete: N files."),
+  // never per-batch progress ticks.
+  const [announce, setAnnounce] = useState('')
+  const [prevStatus, setPrevStatus] = useState(status)
+  if (prevStatus !== status) {
+    setPrevStatus(status)
+    setAnnounce(
+      status === 'scanning'
+        ? 'Scanning…'
+        : status === 'restoring'
+          ? 'Restoring…'
+          : status === 'ready' && prevStatus === 'scanning'
+            ? `Scan complete: ${progress.scanned.toLocaleString()} files.`
+            : '',
+    )
   }
 
   const progressText =
@@ -28,7 +50,6 @@ export function FolderPicker() {
       : status === 'restoring'
         ? `Restoring ${restoringCount.toLocaleString()} cached entries…`
         : ''
-  const statusText = [progressText, notice].filter(Boolean).join(' ')
 
   const skippedNote = skippedFolders > 0 ? ` — ${skippedFolders} folders skipped (no permission)` : ''
   const ignoredNote = ignoredFolders > 0 ? ` — ${ignoredFolders} folders ignored` : ''
@@ -37,6 +58,7 @@ export function FolderPicker() {
     <div ref={wrapperRef} tabIndex={-1} className="flex items-center gap-3 outline-none">
       {status === 'empty' && (
         <button
+          ref={selectRef}
           type="button"
           onClick={keepFocus(selectFolder)}
           className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
@@ -82,13 +104,13 @@ export function FolderPicker() {
         </>
       )}
 
-      <div
-        role="status"
-        aria-atomic="true"
-        className={`text-sm ${progressText ? 'text-gray-600 dark:text-gray-300' : 'text-amber-600 dark:text-amber-400'}`}
-      >
-        {statusText}
-      </div>
+      {progressText && <p className="text-sm text-gray-600 dark:text-gray-300">{progressText}</p>}
+      <p role="status" aria-atomic="true" className="sr-only">
+        {announce}
+      </p>
+      <p role="status" className="text-sm text-amber-600 dark:text-amber-400">
+        {notice}
+      </p>
     </div>
   )
 }

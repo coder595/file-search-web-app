@@ -113,7 +113,8 @@ export function VirtualizedEntryTable({ entries }: { entries: IndexEntry[] }) {
     return <p className="p-4 text-sm text-gray-500 dark:text-gray-400">No results.</p>
   }
 
-  const selectedEntry = entries[selectedIndex]
+  // Only point at an option that exists in the DOM (rows are virtualized).
+  const activeRendered = virtualizer.getVirtualItems().some((v) => v.index === selectedIndex)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -130,7 +131,7 @@ export function VirtualizedEntryTable({ entries }: { entries: IndexEntry[] }) {
         aria-label="Search results"
         aria-describedby={`${listId}-hint`}
         tabIndex={0}
-        aria-activedescendant={selectedEntry ? `${listId}-opt-${selectedIndex}` : undefined}
+        aria-activedescendant={activeRendered ? `${listId}-opt-${selectedIndex}` : undefined}
         onKeyDown={handleKeyDown}
       >
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>

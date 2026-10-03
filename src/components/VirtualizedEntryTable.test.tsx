@@ -59,4 +59,17 @@ describe('VirtualizedEntryTable a11y', () => {
     render(<VirtualizedEntryTable entries={entries} />)
     expect(screen.getAllByRole('option')[0].querySelector('[aria-hidden="true"]')).toHaveTextContent('📄')
   })
+
+  it('omits aria-activedescendant when the selected row is not rendered', async () => {
+    const many = Array.from({ length: 500 }, (_, i) => entry(`f${i}.txt`))
+    render(<VirtualizedEntryTable entries={many} />)
+    const listbox = screen.getByRole('listbox')
+    listbox.focus()
+    await userEvent.keyboard('{End}')
+    // jsdom has no layout: the virtualizer renders a small window around the scroll offset
+    const ids = screen.getAllByRole('option').map((o) => o.id)
+    const active = listbox.getAttribute('aria-activedescendant')
+    if (active) expect(ids).toContain(active)
+    expect(ids.length).toBeLessThan(500)
+  })
 })
