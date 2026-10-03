@@ -46,6 +46,16 @@ describe('FallbackFileList', () => {
     expect(screen.getByText('invoice.pdf')).toBeInTheDocument()
   })
 
+  it('shows an inline alert when picking fails with a non-Abort error', async () => {
+    directoryOpen.mockRejectedValueOnce(new Error('boom'))
+    render(<FallbackFileList />)
+
+    await userEvent.click(screen.getByRole('button', { name: /select folder/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not read/i)
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+  })
+
   it('dismissing the native picker is a no-op, no unhandled rejection', async () => {
     const abortError = Object.assign(new Error('cancelled'), { name: 'AbortError' })
     directoryOpen.mockRejectedValueOnce(abortError)

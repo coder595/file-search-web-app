@@ -22,6 +22,7 @@ export function FallbackFileList() {
   const [entries, setEntries] = useState<IndexEntry[]>([])
   const [query, setQuery] = useState('')
   const [scanning, setScanning] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   useFocusShortcut('/', inputRef)
 
@@ -41,11 +42,12 @@ export function FallbackFileList() {
 
   async function pickFolder() {
     setScanning(true)
+    setError(null)
     try {
       const files = await directoryOpen({ recursive: true })
       setEntries(filesToEntries(files as File[]))
     } catch (err) {
-      if (!isAbortError(err)) throw err
+      if (!isAbortError(err)) setError('Could not read that folder. Please try again.')
     } finally {
       setScanning(false)
     }
@@ -61,6 +63,11 @@ export function FallbackFileList() {
         >
           Select Folder (read-only)
         </button>
+        {error && (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            {error}
+          </p>
+        )}
         {scanning && <p className="text-sm text-gray-600 dark:text-gray-300">Scanning…</p>}
         {!scanning && entries.length > 0 && (
           <input
