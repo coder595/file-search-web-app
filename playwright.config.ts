@@ -43,7 +43,8 @@ export default defineConfig({
     {
       command: 'npm run build && npx vite preview --port 4173 --strictPort',
       url: 'http://localhost:4173',
-      reuseExistingServer: !process.env.CI,
+      // Never reuse: a stale preview would serve an old dist and the CSP test would check the wrong build.
+      reuseExistingServer: false,
       timeout: 120000,
     },
   ],
