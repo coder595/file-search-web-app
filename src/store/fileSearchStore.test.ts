@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_IGNORE_PATTERNS } from '../lib/ignorePatterns'
 import type { IndexEntry, QueryFilters } from '../lib/types'
 import { makeFakeDeps as makeDeps } from '../test/fakeFileSearchDeps'
-import type { WorkerOutMessage } from '../workers/scanController'
 import { createFileSearchStore } from './fileSearchStore'
 
 const quotaError = () => Object.assign(new Error('full'), { name: 'QuotaExceededError' })
@@ -101,7 +100,7 @@ describe('createFileSearchStore', () => {
 
     expect(deps.saveRootHandle).toHaveBeenCalledWith(handle)
     expect(store.getState().status).toBe('scanning')
-    expect(worker.posted).toContainEqual({ type: 'scan', root: handle, ignorePatterns: DEFAULT_IGNORE_PATTERNS })
+    expect(worker.posted).toContainEqual({ type: 'scan', scanId: expect.any(Number), root: handle, ignorePatterns: DEFAULT_IGNORE_PATTERNS })
   })
 
   it('dismissing the native picker is a no-op, staying on the empty state', async () => {
@@ -289,7 +288,7 @@ describe('createFileSearchStore', () => {
 
     await store.getState().refresh()
 
-    expect(worker.posted).toContainEqual({ type: 'scan', root: handle, ignorePatterns: DEFAULT_IGNORE_PATTERNS })
+    expect(worker.posted).toContainEqual({ type: 'scan', scanId: expect.any(Number), root: handle, ignorePatterns: DEFAULT_IGNORE_PATTERNS })
     expect(store.getState().status).toBe('scanning')
   })
 
@@ -324,7 +323,7 @@ describe('createFileSearchStore', () => {
 
     await store.getState().refresh()
 
-    expect(worker.posted).toContainEqual({ type: 'scan', root: handle, ignorePatterns: ['dist'] })
+    expect(worker.posted).toContainEqual({ type: 'scan', scanId: expect.any(Number), root: handle, ignorePatterns: ['dist'] })
   })
 
   describe('storage failures [B1]', () => {
@@ -537,11 +536,70 @@ describe('createFileSearchStore', () => {
     })
   })
 
+  describe('scanId guards [review]', () => {
+    const handle = {} as FileSystemDirectoryHandle
+    const files: IndexEntry[] = [
+      { id: '1', name: 'a.pdf', path: 'a.pdf', extension: 'pdf', kind: 'file', size: 1, lastModified: 1 },
+    ]
+
+    async function startTwoScans(overrides = {}) {
+      const ctx = makeDeps({ showDirectoryPicker: vi.fn().mockResolvedValue(handle), ...overrides })
+      const store = createFileSearchStore(ctx.deps)
+      await store.getState().init()
+      await store.getState().selectFolder() // scan A
+      await store.getState().refresh() // scan B
+      const scans = ctx.worker.posted.filter((m) => m.type === 'scan')
+      return { ...ctx, store, a: scans[0].scanId, b: scans[1].scanId }
+    }
+
+    it('sends a distinct, increasing scanId with each scan', async () => {
+      const { a, b } = await startTwoScans()
+      expect(typeof a).toBe('number')
+      expect(b).toBeGreaterThan(a)
+    })
+
+    it('ignores a stale scan-complete from an older scan', async () => {
+      const { worker, deps, store, a } = await startTwoScans()
+      worker.emit({ type: 'scan-complete', scanId: a, scanned: 9, skipped: 0, ignored: 0, entries: files })
+      expect(store.getState().status).toBe('scanning')
+      expect(deps.saveEntries).not.toHaveBeenCalled()
+    })
+
+    it('ignores stale progress from an older scan', async () => {
+      const { worker, store, a } = await startTwoScans()
+      worker.emit({ type: 'progress', scanId: a, scanned: 77, skipped: 0 })
+      expect(store.getState().progress.scanned).toBe(0)
+    })
+
+    it('a stale scan error does not flip status to error', async () => {
+      const { worker, store, a } = await startTwoScans()
+      worker.emit({ type: 'error', scanId: a, message: 'old walk failed' })
+      expect(store.getState().status).toBe('scanning')
+    })
+
+    it('a slow save failure from scan A does not clear entries or set a notice on scan B', async () => {
+      let rejectSave!: (e: Error) => void
+      const saveEntries = vi.fn().mockReturnValue(new Promise<void>((_, rej) => (rejectSave = rej)))
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const { worker, deps, store } = await startTwoScans({ saveEntries })
+      const scans = worker.posted.filter((m) => m.type === 'scan')
+      // Scan A completes, then B starts before A's save settles.
+      store.setState({ status: 'scanning' })
+      worker.emit({ type: 'scan-complete', scanId: scans[1].scanId, scanned: 1, skipped: 0, ignored: 0, entries: files })
+      await store.getState().refresh() // scan C supersedes
+      rejectSave(new Error('slow fail'))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(deps.clearEntries).not.toHaveBeenCalled()
+      expect(store.getState().notice).toBeUndefined()
+      spy.mockRestore()
+    })
+  })
+
   describe('review hardening [B2 fix wave]', () => {
     const handle = {} as FileSystemDirectoryHandle
     const quota = Object.assign(new Error('full'), { name: 'QuotaExceededError' })
     const GENERIC = "Couldn't save this folder's index for next time."
-    const scanComplete: WorkerOutMessage = { type: 'scan-complete', scanned: 0, skipped: 0, ignored: 0, entries: [] }
+    const scanComplete = { type: 'scan-complete' as const, scanned: 0, skipped: 0, ignored: 0, entries: [] }
 
     it('1. late scan-complete / progress / restore-complete do not override error or a different status', async () => {
       const { worker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle), loadEntries: vi.fn().mockResolvedValue([]) })

@@ -34,6 +34,26 @@ function deferred<T>() {
 }
 
 describe('ScanController', () => {
+  it('echoes scanId on progress, scan-complete and scan error', async () => {
+    const posted: { type: string; scanId?: number }[] = []
+    const controller = new ScanController((msg) => posted.push(msg as never))
+    const many = dir('root', Array.from({ length: 250 }, (_, i) => file(`f${i}.txt`)))
+    await controller.scan(many as unknown as FileSystemDirectoryHandle, undefined, 7)
+    expect(posted.map((m) => m.type)).toEqual(expect.arrayContaining(['progress', 'scan-complete']))
+    for (const m of posted) expect(m.scanId).toBe(7)
+
+    const failing = {
+      kind: 'directory',
+      name: 'root',
+      entries: () => ({
+        [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(new Error('gone')) }),
+      }),
+    } as unknown as FileSystemDirectoryHandle
+    const errs: { type: string; scanId?: number }[] = []
+    await new ScanController((m) => errs.push(m as never)).scan(failing, undefined, 9)
+    expect(errs).toEqual([{ type: 'error', message: 'gone', scanId: 9 }])
+  })
+
   it('indexes files during scan and posts scan-complete with the final count', async () => {
     const posted: unknown[] = []
     const controller = new ScanController((msg) => posted.push(msg))
@@ -198,7 +218,7 @@ describe('ScanController.restore', () => {
       const posted: unknown[] = []
       const controller = new ScanController((msg) => posted.push(msg))
       await controller.scan(failingRoot)
-      expect(posted).toEqual([{ type: 'error', message: 'gone' }])
+      expect(posted).toEqual([{ type: 'error', message: 'gone', scanId: 0 }])
     })
 
     it('falls back to the error name when the message is empty', async () => {
@@ -212,7 +232,7 @@ describe('ScanController.restore', () => {
         }),
       } as unknown as FileSystemDirectoryHandle
       await controller.scan(root)
-      expect(posted).toEqual([{ type: 'error', message: 'NotFoundError' }])
+      expect(posted).toEqual([{ type: 'error', message: 'NotFoundError', scanId: 0 }])
     })
 
     it('stays silent when a superseded scan fails', async () => {

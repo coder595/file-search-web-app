@@ -6,11 +6,11 @@ import { sortEntries } from './sort'
 import { walkDirectory } from './walk'
 
 export type WorkerOutMessage =
-  | { type: 'progress'; scanned: number; skipped: number }
-  | { type: 'scan-complete'; scanned: number; skipped: number; ignored: number; entries: IndexEntry[] }
+  | { type: 'progress'; scanId: number; scanned: number; skipped: number }
+  | { type: 'scan-complete'; scanId: number; scanned: number; skipped: number; ignored: number; entries: IndexEntry[] }
   | { type: 'query-result'; entries: IndexEntry[] }
   | { type: 'restore-complete'; count: number }
-  | { type: 'error'; message: string }
+  | { type: 'error'; message: string; scanId?: number }
 
 const PROGRESS_BATCH_SIZE = 200
 
@@ -35,7 +35,7 @@ export class ScanController {
     this.post = post
   }
 
-  async scan(root: FileSystemDirectoryHandle, ignoreNames?: Set<string>): Promise<void> {
+  async scan(root: FileSystemDirectoryHandle, ignoreNames?: Set<string>, scanId = 0): Promise<void> {
     const myGeneration = ++this.generation
     this.searchIndex.clear()
 
@@ -59,15 +59,15 @@ export class ScanController {
 
         if (++sinceYield >= PROGRESS_BATCH_SIZE) {
           sinceYield = 0
-          this.post({ type: 'progress', scanned, skipped })
+          this.post({ type: 'progress', scanId, scanned, skipped })
           await Promise.resolve()
         }
       }
 
       if (myGeneration !== this.generation) return
-      this.post({ type: 'scan-complete', scanned, skipped, ignored, entries: this.searchIndex.values() })
+      this.post({ type: 'scan-complete', scanId, scanned, skipped, ignored, entries: this.searchIndex.values() })
     } catch (err) {
-      if (myGeneration === this.generation) this.post({ type: 'error', message: errorMessage(err) })
+      if (myGeneration === this.generation) this.post({ type: 'error', message: errorMessage(err), scanId })
     }
   }
 

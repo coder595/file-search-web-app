@@ -3,6 +3,9 @@ import type { FileSearchDeps } from '../store/fileSearchStore'
 import type { WorkerInMessage } from '../workers/scan.worker'
 import type { WorkerOutMessage } from '../workers/scanController'
 
+// Scan replies may omit scanId; emit() fills in the latest posted scan's id so tests read naturally.
+type Loose<M> = M extends { scanId: number } ? Omit<M, 'scanId'> & { scanId?: number } : M
+
 class FakeWorker {
   posted: WorkerInMessage[] = []
   onmessage: ((e: MessageEvent<WorkerOutMessage>) => void) | null = null
@@ -17,8 +20,13 @@ class FakeWorker {
   postMessage(msg: WorkerInMessage) {
     this.posted.push(msg)
   }
-  emit(msg: WorkerOutMessage) {
-    this.onmessage?.({ data: msg } as MessageEvent<WorkerOutMessage>)
+  emit(msg: Loose<WorkerOutMessage>) {
+    let data = msg as WorkerOutMessage
+    if ((msg.type === 'progress' || msg.type === 'scan-complete') && msg.scanId === undefined) {
+      const lastScan = this.posted.findLast((m) => m.type === 'scan')
+      data = { ...msg, scanId: lastScan?.type === 'scan' ? lastScan.scanId : 0 } as WorkerOutMessage
+    }
+    this.onmessage?.({ data } as MessageEvent<WorkerOutMessage>)
   }
 }
 

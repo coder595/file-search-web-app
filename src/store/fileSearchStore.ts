@@ -78,6 +78,7 @@ function errorText(err: unknown): string {
 export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDeps) {
   let worker = deps.createWorker()
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
+  let scanId = 0 // bumped per scan; scan replies carrying an older id are stale and dropped
 
   const store = createStore<FileSearchState>((set, get) => {
     // Back-pressure: one query in flight; extra requests collapse into one follow-up with the latest filters.
@@ -113,6 +114,7 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
     function handleMessage(event: MessageEvent<WorkerOutMessage>) {
       const msg = event.data
       const status = get().status
+      if ((msg.type === 'progress' || msg.type === 'scan-complete' || msg.type === 'error') && msg.scanId !== undefined && msg.scanId !== scanId) return
       if (msg.type === 'progress') {
         if (status !== 'scanning') return
         set({ progress: { scanned: msg.scanned, skipped: msg.skipped } })
@@ -125,7 +127,9 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
           skippedFolders: msg.skipped,
           ignoredFolders: msg.ignored,
         })
+        const savedScanId = scanId
         deps.saveEntries(msg.entries).catch(async (err: unknown) => {
+          if (savedScanId !== scanId) return // a newer scan owns the cache now; don't clobber it
           await deps.clearEntries().catch((clearErr: unknown) => console.error('Failed to clear cached entries', clearErr))
           set({ notice: saveFailureNotice(err) })
         })
@@ -165,7 +169,7 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
     async function startScan(handle: FileSystemDirectoryHandle) {
       set({ status: 'scanning', rootHandle: handle, progress: { scanned: 0, skipped: 0 }, error: undefined })
       try {
-        worker.postMessage({ type: 'scan', root: handle, ignorePatterns: get().ignorePatterns })
+        worker.postMessage({ type: 'scan', scanId: ++scanId, root: handle, ignorePatterns: get().ignorePatterns })
       } catch (err) {
         set({ status: 'error', error: errorText(err) })
       }
