@@ -126,7 +126,7 @@ export function VirtualizedEntryTable({ entries }: { entries: IndexEntry[] }) {
       </p>
       <div
         ref={parentRef}
-        className="min-h-0 flex-1 overflow-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 dark:focus-visible:outline-blue-400"
+        className="min-h-48 flex-1 overflow-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 dark:focus-visible:outline-blue-400"
         role="listbox"
         aria-label="Search results"
         aria-describedby={`${listId}-hint`}
