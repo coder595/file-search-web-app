@@ -14,3 +14,8 @@ body {
   margin: 0;
   @apply bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100;
 }
+
+/* Native controls (date picker, select arrow, scrollbars) follow the theme. */
+html.dark {
+  color-scheme: dark;
+}
