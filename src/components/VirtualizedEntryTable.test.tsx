@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { IndexEntry } from '../lib/types'
-import { VirtualizedEntryTable } from './VirtualizedEntryTable'
+import { TOAST_CLEAR_MS, VirtualizedEntryTable } from './VirtualizedEntryTable'
 
 const entry = (name: string): IndexEntry => ({
   id: `/root/My "Docs"/${name}`,
@@ -54,6 +54,19 @@ describe('VirtualizedEntryTable a11y', () => {
     expect(status).toHaveTextContent(/copied/i)
     act(() => void vi.advanceTimersByTime(4500))
     expect(status).toBeEmptyDOMElement()
+  })
+
+  it('clears the toast after TOAST_CLEAR_MS and a repeat copy shows it again', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+    render(<VirtualizedEntryTable entries={entries} />)
+    const status = screen.getByRole('status')
+    await userEvent.click(screen.getAllByRole('option')[0])
+    expect(status).toHaveTextContent(/copied/i)
+    act(() => void vi.advanceTimersByTime(TOAST_CLEAR_MS))
+    expect(status).toBeEmptyDOMElement()
+    await userEvent.click(screen.getAllByRole('option')[0])
+    expect(status).toHaveTextContent(/copied/i)
   })
 
   it('hides decorative emoji from assistive tech', () => {

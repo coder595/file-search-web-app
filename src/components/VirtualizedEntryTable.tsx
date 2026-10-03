@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { IndexEntry } from '../lib/types'
 
 const ROW_HEIGHT = 36
+export const TOAST_CLEAR_MS = 4000
 
 function formatSize(bytes: number): string {
   if (bytes === 0) return '—'
@@ -58,7 +59,7 @@ export function VirtualizedEntryTable({ entries }: { entries: IndexEntry[] }) {
   // Clear the (always-mounted) status text so a repeat copy re-announces.
   useEffect(() => {
     if (!toast) return
-    const t = setTimeout(() => setToast(''), 4000)
+    const t = setTimeout(() => setToast(''), TOAST_CLEAR_MS)
     return () => clearTimeout(t)
   }, [toast])
 
