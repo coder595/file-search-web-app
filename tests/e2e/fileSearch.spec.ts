@@ -22,6 +22,23 @@ test.describe('File Search — Chrome/Edge path (mocked File System Access API)'
     await expect(app.toast).toContainText(/copied/i)
   })
 
+  test('virtualizes a large result set inside a bounded scroll container', async ({ page }) => {
+    const files = Array.from({ length: 2000 }, (_, i) => ({ name: `file-${i}.txt`, kind: 'file' as const }))
+    await installMockFileSystem(page, { name: 'big', kind: 'directory', children: files })
+    const app = new FileSearchPage(page)
+    await app.goto()
+    await app.selectFolder()
+    await expect(app.refreshButton).toBeVisible()
+    await expect(app.rows.first()).toBeVisible()
+
+    expect(await app.rows.count()).toBeLessThan(200)
+    const { scrollHeight, clientHeight } = await app.listbox.evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+    }))
+    expect(scrollHeight).toBeGreaterThan(clientHeight)
+  })
+
   test('zero results shows an explicit empty state, not a blank screen', async ({ page }) => {
     await installMockFileSystem(page, SAMPLE_TREE)
     const app = new FileSearchPage(page)

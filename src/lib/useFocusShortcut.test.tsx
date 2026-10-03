@@ -42,4 +42,14 @@ describe('useFocusShortcut', () => {
 
     expect(target).toHaveFocus()
   })
+
+  it('typing / in the focused target keeps the character', async () => {
+    const { getByLabelText } = render(<Harness />)
+    const target = getByLabelText('target') as HTMLInputElement
+    target.focus()
+
+    await userEvent.keyboard('a/b')
+
+    expect(target.value).toBe('a/b')
+  })
 })

@@ -108,7 +108,7 @@ export function VirtualizedEntryTable({ entries }: { entries: IndexEntry[] }) {
   const selectedEntry = entries[selectedIndex]
 
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-col">
       {toast && (
         <p role="status" className="px-2 pb-1 text-xs text-gray-500 dark:text-gray-400">
           {toast}
@@ -116,7 +116,7 @@ export function VirtualizedEntryTable({ entries }: { entries: IndexEntry[] }) {
       )}
       <div
         ref={parentRef}
-        className="h-full overflow-auto outline-none"
+        className="min-h-0 flex-1 overflow-auto outline-none"
         role="listbox"
         tabIndex={0}
         aria-activedescendant={selectedEntry ? `option-${selectedEntry.id}` : undefined}
