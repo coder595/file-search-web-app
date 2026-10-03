@@ -143,7 +143,7 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
         }
       } else if (msg.type === 'restore-complete') {
         if (status !== 'restoring') return
-        set({ status: 'ready' })
+        set({ status: 'ready', progress: { scanned: msg.count, skipped: 0 } })
         postQuery()
       } else if (msg.type === 'query-error') {
         // A failed query is not fatal: keep status and results; free the slot so the next query can go out.

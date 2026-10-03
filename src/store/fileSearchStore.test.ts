@@ -532,6 +532,7 @@ describe('createFileSearchStore', () => {
 
       worker.emit({ type: 'restore-complete', count: 1 })
       expect(store.getState().status).toBe('ready')
+      expect(store.getState().progress).toEqual({ scanned: 1, skipped: 0 })
       expect(worker.posted.some((m) => m.type === 'query')).toBe(true)
     })
   })

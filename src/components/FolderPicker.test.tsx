@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { FileSearchStoreProvider } from '../store/FileSearchStoreProvider'
 import { makeFakeDeps } from '../test/fakeFileSearchDeps'
 import { FolderPicker } from './FolderPicker'
@@ -140,6 +140,39 @@ describe('FolderPicker', () => {
     await waitFor(() =>
       expect(latestWorker().posted).toContainEqual(expect.objectContaining({ type: 'scan', root: handle })),
     )
+  })
+
+  it('error state with a folder set offers "Choose a different folder", which opens the picker', async () => {
+    const handle = {} as FileSystemDirectoryHandle
+    const showDirectoryPicker = vi.fn().mockRejectedValue(Object.assign(new Error('x'), { name: 'AbortError' }))
+    const { deps, worker } = makeFakeDeps({
+      loadRootHandle: async () => handle,
+      loadEntries: async () => [],
+      showDirectoryPicker,
+    })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    await screen.findByText(/restoring \d/i)
+    act(() => worker.emit({ type: 'error', message: 'Folder vanished' }))
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Choose a different folder' }))
+    expect(showDirectoryPicker).toHaveBeenCalledTimes(1)
+  })
+
+  it('error state without a folder does not offer "Choose a different folder"', async () => {
+    const showDirectoryPicker = vi.fn().mockRejectedValue(new Error('picker broke'))
+    const { deps } = makeFakeDeps({ showDirectoryPicker })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: /select folder/i }))
+    await screen.findByRole('alert')
+    expect(screen.queryByRole('button', { name: 'Choose a different folder' })).not.toBeInTheDocument()
   })
 
   it('shows restoring progress text with the cached entry count', async () => {

@@ -13,6 +13,7 @@ export function FolderPicker() {
   const retry = useFileSearchStore((s) => s.retry)
   const notice = useFileSearchStore((s) => s.notice)
   const refresh = useFileSearchStore((s) => s.refresh)
+  const hasFolder = useFileSearchStore((s) => s.rootHandle !== undefined)
 
   // The clicked button unmounts when status changes; park focus on the wrapper
   // (before awaiting) so it doesn't fall back to <body> (WCAG 2.4.3).
@@ -109,6 +110,15 @@ export function FolderPicker() {
           >
             Retry
           </button>
+          {hasFolder && (
+            <button
+              type="button"
+              onClick={keepFocus(selectFolder)}
+              className="rounded border border-gray-500 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              Choose a different folder
+            </button>
+          )}
         </>
       )}
 
