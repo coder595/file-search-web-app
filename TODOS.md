@@ -34,7 +34,7 @@
 
 **Pros:** "no network egress" becomes runtime-enforced everywhere. **Cons:** `python -m http.server` can't send custom headers, so `scripts/run.sh`/`run.bat` would need a small custom handler.
 
-**Context:** Start in `scripts/run.sh` + `run.bat`. A hosted deploy (IMPROVEMENT_PLAN F4) would set it via platform headers instead.
+**Context:** Start in `scripts/run.sh` + `run.bat`. A hosted deploy (IMPROVEMENT_PLAN F4) would set it via platform headers instead. The same header should carry `frame-ancestors 'none'` (clickjacking): browsers ignore `frame-ancestors` in a `<meta>` CSP, so the Phase 4 meta policy can't set it (Phase 4 security review).
 
 **Effort:** S
 **Priority:** P3
