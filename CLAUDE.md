@@ -21,6 +21,8 @@ npx playwright test tests/e2e/foo.spec.ts -g "test name"   # single E2E test
 ./scripts/package-portable.sh            # build + zip a no-npm-install portable release
 ```
 
+Playwright runs Chromium only and has `reuseExistingServer` set outside CI, so a stale `npm run dev` already on :5173 gets tested instead of a fresh one. Kill it first if the results look wrong.
+
 Vitest excludes `tests/e2e/**` (Playwright specs use `@playwright/test`, not Vitest — they are not interchangeable runners; do not add Playwright specs under `src/`).
 
 ## Architecture
@@ -66,7 +68,7 @@ Zips `dist/` plus `scripts/run.sh`/`run.bat` into a build that needs no `npm ins
 
 ## Process notes
 
-`plan.md` is the source-of-truth design doc (architecture, data model, phase-by-phase build log, and a running `## GSTACK REVIEW REPORT` — read it before making architectural changes). `PROGRESS.md` tracks phase status and the production-readiness gate. `TODOS.md` holds deferred, explicitly-scoped-out work — check it before adding speculative features.
+`plan.md` is the source-of-truth design doc (architecture, data model, phase-by-phase build log, and a running `## GSTACK REVIEW REPORT` — read it before making architectural changes). `PROGRESS.md` tracks phase status and the production-readiness gate. `TODOS.md` holds deferred, explicitly-scoped-out work — check it before adding speculative features. `IMPROVEMENT_PLAN.md` is the proposed Phase 4 plan (CI, CSP, quota handling, a11y). It is not yet approved, so don't execute it unless asked. `prompt.md` is the original build prompt and is kept for history only.
 
 ## Skill routing
 
