@@ -1,4 +1,4 @@
-import { useFileSearchStore } from '../store/FileSearchStoreProvider'
+import { useFileSearchStore } from '../store/useFileSearchStore'
 
 export function FolderPicker() {
   const status = useFileSearchStore((s) => s.status)

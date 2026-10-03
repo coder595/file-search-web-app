@@ -1,5 +1,5 @@
 import { useState, type ChangeEvent, type KeyboardEvent } from 'react'
-import { useFileSearchStore } from '../store/FileSearchStoreProvider'
+import { useFileSearchStore } from '../store/useFileSearchStore'
 import type { QueryFilters } from '../lib/types'
 
 const labelClass = 'flex flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-400'

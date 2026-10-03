@@ -1,4 +1,4 @@
-import { useFileSearchStore } from '../store/FileSearchStoreProvider'
+import { useFileSearchStore } from '../store/useFileSearchStore'
 import { VirtualizedEntryTable } from './VirtualizedEntryTable'
 
 export function ResultsList() {

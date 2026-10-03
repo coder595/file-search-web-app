@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useFocusShortcut } from '../lib/useFocusShortcut'
-import { useFileSearchStore } from '../store/FileSearchStoreProvider'
+import { useFileSearchStore } from '../store/useFileSearchStore'
 
 export function SearchBar() {
   const query = useFileSearchStore((s) => s.filters.query)

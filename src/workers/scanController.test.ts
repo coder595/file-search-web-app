@@ -9,7 +9,7 @@ interface FileHandle {
 interface DirHandle {
   kind: 'directory'
   name: string
-  entries: () => AsyncGenerator<[string, FileHandle | DirHandle]>
+  entries: () => AsyncIterable<[string, FileHandle | DirHandle]>
 }
 
 function file(name: string, size = 10, lastModified = 1000): FileHandle {
@@ -130,9 +130,11 @@ describe('ScanController', () => {
     const restricted: DirHandle = {
       kind: 'directory',
       name: 'restricted',
-      async *entries() {
-        throw new DOMException('nope', 'NotAllowedError')
-      },
+      entries: () => ({
+        [Symbol.asyncIterator]: () => ({
+          next: () => Promise.reject(new DOMException('nope', 'NotAllowedError')),
+        }),
+      }),
     }
     const root = dir('root', [restricted, file('after.txt')])
 

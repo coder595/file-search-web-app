@@ -39,6 +39,7 @@ export function VirtualizedEntryTable({ entries }: { entries: IndexEntry[] }) {
   const [toast, setToast] = useState<string | null>(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
 
+  // oxlint-disable-next-line react/incompatible-library -- TanStack Virtual returns non-memoizable functions; this component is intentionally not compiler-memoized
   const virtualizer = useVirtualizer({
     count: entries.length,
     getScrollElement: () => parentRef.current,
