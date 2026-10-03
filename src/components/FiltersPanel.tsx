@@ -10,6 +10,7 @@ export function FiltersPanel() {
   const setFilters = useFileSearchStore((s) => s.setFilters)
   const ignorePatterns = useFileSearchStore((s) => s.ignorePatterns)
   const setIgnorePatterns = useFileSearchStore((s) => s.setIgnorePatterns)
+  const folderLoaded = useFileSearchStore((s) => s.status === 'ready')
   const [newPattern, setNewPattern] = useState('')
 
   function addPattern(e: KeyboardEvent<HTMLInputElement>) {
@@ -140,7 +141,9 @@ export function FiltersPanel() {
             placeholder="folder name…"
           />
         </div>
-        <p className="text-xs text-gray-600 dark:text-gray-400">Click Refresh to apply</p>
+        <p className="text-xs text-gray-600 dark:text-gray-400">
+          {folderLoaded ? 'Click Refresh to apply' : 'Applies to the next scan'}
+        </p>
       </div>
     </div>
   )
