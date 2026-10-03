@@ -202,11 +202,52 @@ describe('createFileSearchStore', () => {
       const { worker, latestWorker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle) })
       const store = createFileSearchStore(deps)
       await store.getState().init()
+      worker.emit({ type: 'progress', scanned: 1, skipped: 0 })
+      expect(queries(worker)).toHaveLength(1) // in flight, never answered
       await store.getState().retry()
-      worker.emit({ type: 'progress', scanned: 1, skipped: 0 }) // old worker ignored (handlers detached)
       const fresh = latestWorker()
       fresh.emit({ type: 'progress', scanned: 1, skipped: 0 })
       expect(queries(fresh)).toHaveLength(1)
+    })
+
+    it('a postMessage that throws does not wedge later queries', async () => {
+      const { worker, deps } = makeDeps({ showDirectoryPicker: vi.fn().mockResolvedValue(handle) })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await store.getState().selectFolder()
+      const orig = worker.postMessage.bind(worker)
+      worker.postMessage = vi.fn(() => {
+        throw new Error('clone failed')
+      })
+      worker.emit({ type: 'progress', scanned: 1, skipped: 0 })
+      expect(store.getState()).toMatchObject({ status: 'error', error: 'clone failed' })
+      worker.postMessage = orig
+      store.getState().setFilters({ query: 'x' })
+      await vi.advanceTimersByTimeAsync(130)
+      expect(queries(worker)).toHaveLength(1)
+    })
+
+    it('scan-complete during an in-flight query triggers exactly one follow-up query', async () => {
+      const { worker, deps } = makeDeps({ showDirectoryPicker: vi.fn().mockResolvedValue(handle) })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await store.getState().selectFolder()
+      worker.emit({ type: 'progress', scanned: 1, skipped: 0 })
+      worker.emit({ type: 'scan-complete', scanned: 1, skipped: 0, ignored: 0, entries: [] })
+      expect(queries(worker)).toHaveLength(1)
+      worker.emit({ type: 'query-result', entries: [] })
+      expect(queries(worker)).toHaveLength(2)
+    })
+
+    it('retry() cancels a pending debounced query', async () => {
+      const { worker, latestWorker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle) })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      store.getState().setFilters({ query: 'x' })
+      await store.getState().retry()
+      await vi.advanceTimersByTimeAsync(130)
+      expect(queries(latestWorker())).toHaveLength(0)
+      expect(queries(worker)).toHaveLength(0)
     })
 
     it('a query-result during scanning still updates results', async () => {

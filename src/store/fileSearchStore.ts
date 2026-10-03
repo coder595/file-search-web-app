@@ -88,9 +88,14 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
         queryDirty = true
         return
       }
-      queryInFlight = true
-      worker.postMessage({ type: 'query', filters: get().filters })
+      try {
+        worker.postMessage({ type: 'query', filters: get().filters })
+        queryInFlight = true
+      } catch (err) {
+        set({ status: 'error', error: errorText(err) })
+      }
     }
+    // A late reply from the old query can briefly allow two in flight; benign (replies are ordered, filters read at send time).
     function resetQueries() {
       queryInFlight = false
       queryDirty = false
@@ -247,6 +252,7 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
       async retry() {
         worker.onmessage = null
         worker.onerror = null
+        if (debounceTimer) clearTimeout(debounceTimer)
         worker.terminate()
         resetQueries()
         worker = deps.createWorker()
