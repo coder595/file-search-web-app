@@ -59,9 +59,20 @@ describe('ResultsList', () => {
     delete navigator.clipboard
   })
 
-  it('shows an empty state when there are no results', () => {
-    renderList([])
-    expect(screen.getByText(/no results/i)).toBeInTheDocument()
+  it('shows "No results." when a loaded folder matches nothing', async () => {
+    const { deps, worker } = makeFakeDeps({
+      loadRootHandle: vi.fn().mockResolvedValue({ name: 'root' } as FileSystemDirectoryHandle),
+      loadEntries: vi.fn().mockResolvedValue([]),
+    })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <ResultsList />
+      </FileSearchStoreProvider>,
+    )
+    await waitFor(() => expect(worker.posted.some((m) => m.type === 'restore')).toBe(true))
+    worker.emit({ type: 'restore-complete', count: 0 })
+    worker.emit({ type: 'query-result', entries: [] })
+    expect(await screen.findByText('No results.')).toBeInTheDocument()
   })
 
   it('renders a row with name, path, size, and modified date as plain text', async () => {
