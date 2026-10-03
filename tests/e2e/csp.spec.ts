@@ -17,11 +17,20 @@ async function trackViolations(page: Page, forceFallback = false) {
       ;(w.__cspViolations as unknown[]).push({ directive: e.violatedDirective, blocked: e.blockedURI })
     })
   }, forceFallback)
-  return async () => {
-    // Violations fire asynchronously (worker spawn, late styles); give them a moment to surface.
-    await page.waitForTimeout(500)
+  const pageErrors: string[] = []
+  page.on('pageerror', (e) => pageErrors.push(e.message))
+  const workerUrls: string[] = []
+  page.on('worker', (w) => workerUrls.push(w.url()))
+  return async (expectWorker: boolean) => {
+    if (expectWorker) {
+      // Positive signal that the scan worker actually spawned (bounded by the expect timeout).
+      await expect.poll(() => workerUrls.some((u) => u.includes('scan.worker'))).toBe(true)
+    }
+    // Violations/late errors are dispatched as tasks; one round-trip flushes any already queued.
+    await page.evaluate(() => new Promise((r) => setTimeout(r, 0)))
     const violations = await page.evaluate(() => (window as unknown as { __cspViolations: unknown[] }).__cspViolations)
     expect({ violations, consoleErrors }).toEqual({ violations: [], consoleErrors: [] })
+    expect(pageErrors).toEqual([])
   }
 }
 
@@ -32,12 +41,12 @@ test('live path: CSP active, worker loads, zero violations', async ({ page }) =>
   await expect(page.getByRole('button', { name: 'Select Folder' })).toBeVisible()
   // A blocked worker trips the store's worker.onerror backstop, which renders an alert.
   await expect(page.getByRole('alert')).toHaveCount(0)
-  await check()
+  await check(true)
 })
 
 test('fallback path: banner shows, zero violations', async ({ page }) => {
   const check = await trackViolations(page, true)
   await page.goto('/')
   await expect(page.getByRole('status')).toContainText(/read-only fallback mode/i)
-  await check()
+  await check(false)
 })
