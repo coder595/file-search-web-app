@@ -124,9 +124,9 @@ export function FiltersPanel() {
                 type="button"
                 aria-label={`Remove ${pattern}`}
                 onClick={() => removePattern(pattern)}
-                className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                className="inline-flex size-6 items-center justify-center rounded text-gray-600 hover:bg-gray-200 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100"
               >
-                ×
+                <span aria-hidden="true">×</span>
               </button>
             </span>
           ))}
