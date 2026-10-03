@@ -171,7 +171,7 @@ describe('createFileSearchStore', () => {
 
   it('refresh() forces a full re-scan and is the only action that does so', async () => {
     const handle = {} as FileSystemDirectoryHandle
-    const { worker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle) })
+    const { worker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle), loadEntries: vi.fn().mockResolvedValue([]) })
     const store = createFileSearchStore(deps)
     await store.getState().init()
     worker.posted.length = 0
@@ -191,7 +191,7 @@ describe('createFileSearchStore', () => {
 
   it('setIgnorePatterns() updates state and persists to localStorage, without triggering a re-scan', async () => {
     const handle = {} as FileSystemDirectoryHandle
-    const { worker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle) })
+    const { worker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle), loadEntries: vi.fn().mockResolvedValue([]) })
     const store = createFileSearchStore(deps)
     await store.getState().init()
     worker.posted.length = 0
@@ -205,7 +205,7 @@ describe('createFileSearchStore', () => {
 
   it('refresh() after setIgnorePatterns() sends the newly-set list, not the stale default', async () => {
     const handle = {} as FileSystemDirectoryHandle
-    const { worker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle) })
+    const { worker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle), loadEntries: vi.fn().mockResolvedValue([]) })
     const store = createFileSearchStore(deps)
     await store.getState().init()
     store.getState().setIgnorePatterns(['dist'])
@@ -214,5 +214,97 @@ describe('createFileSearchStore', () => {
     await store.getState().refresh()
 
     expect(worker.posted).toContainEqual({ type: 'scan', root: handle, ignorePatterns: ['dist'] })
+  })
+
+  describe('storage failures [B1]', () => {
+    const NOTICE = "Browser storage is full — this folder's index won't be saved for next time."
+
+    it('a failed saveEntries clears cached entries and sets the notice, with no unhandled rejection', async () => {
+      const handle = {} as FileSystemDirectoryHandle
+      const { worker, deps } = makeDeps({
+        showDirectoryPicker: vi.fn().mockResolvedValue(handle),
+        saveEntries: vi.fn().mockRejectedValue(new Error('QuotaExceededError')),
+      })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await store.getState().selectFolder()
+      worker.emit({ type: 'scan-complete', scanned: 0, skipped: 0, ignored: 0, entries: [] })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(deps.clearEntries).toHaveBeenCalled()
+      expect(store.getState().notice).toBe(NOTICE)
+      expect(store.getState().status).toBe('ready')
+    })
+
+    it('a failing clearEntries after a failed save is also swallowed', async () => {
+      const { worker, deps } = makeDeps({
+        saveEntries: vi.fn().mockRejectedValue(new Error('quota')),
+        clearEntries: vi.fn().mockRejectedValue(new Error('nope')),
+      })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      worker.emit({ type: 'scan-complete', scanned: 0, skipped: 0, ignored: 0, entries: [] })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(store.getState().notice).toBe(NOTICE)
+    })
+
+    it('a failed saveRootHandle sets the notice but the scan still starts', async () => {
+      const handle = {} as FileSystemDirectoryHandle
+      const { worker, deps } = makeDeps({
+        showDirectoryPicker: vi.fn().mockResolvedValue(handle),
+        saveRootHandle: vi.fn().mockRejectedValue(new Error('quota')),
+      })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await store.getState().selectFolder()
+
+      expect(store.getState().notice).toBe(NOTICE)
+      expect(worker.posted).toContainEqual(expect.objectContaining({ type: 'scan', root: handle }))
+    })
+
+    it('selecting a folder clears a previous notice', async () => {
+      const handle = {} as FileSystemDirectoryHandle
+      const { worker, deps } = makeDeps({
+        showDirectoryPicker: vi.fn().mockResolvedValue(handle),
+        saveEntries: vi.fn().mockRejectedValueOnce(new Error('quota')),
+      })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await store.getState().selectFolder()
+      worker.emit({ type: 'scan-complete', scanned: 0, skipped: 0, ignored: 0, entries: [] })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(store.getState().notice).toBe(NOTICE)
+
+      await store.getState().selectFolder()
+      expect(store.getState().notice).toBeUndefined()
+    })
+
+    it('init with a granted handle but no saved entries re-scans instead of restoring', async () => {
+      const handle = {} as FileSystemDirectoryHandle
+      const { worker, deps } = makeDeps({
+        loadRootHandle: vi.fn().mockResolvedValue(handle),
+        loadEntries: vi.fn().mockResolvedValue(undefined),
+      })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+
+      expect(worker.posted.some((m) => m.type === 'scan')).toBe(true)
+      expect(worker.posted.some((m) => m.type === 'restore')).toBe(false)
+      expect(store.getState().status).toBe('scanning')
+    })
+
+    it('init with a genuinely saved empty array still restores', async () => {
+      const handle = {} as FileSystemDirectoryHandle
+      const { worker, deps } = makeDeps({
+        loadRootHandle: vi.fn().mockResolvedValue(handle),
+        loadEntries: vi.fn().mockResolvedValue([]),
+      })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+
+      expect(worker.posted).toContainEqual({ type: 'restore', entries: [] })
+      expect(worker.posted.some((m) => m.type === 'scan')).toBe(false)
+    })
   })
 })

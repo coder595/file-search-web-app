@@ -1,6 +1,6 @@
 import { createStore } from 'zustand/vanilla'
 import { checkPermission as defaultCheckPermission, requestPermission as defaultRequestPermission } from '../lib/permission'
-import { clearCache as defaultClearCache, loadEntries as defaultLoadEntries, loadRootHandle as defaultLoadRootHandle, saveEntries as defaultSaveEntries, saveRootHandle as defaultSaveRootHandle } from '../lib/db'
+import { clearCache as defaultClearCache, clearEntries as defaultClearEntries, loadEntries as defaultLoadEntries, loadRootHandle as defaultLoadRootHandle, saveEntries as defaultSaveEntries, saveRootHandle as defaultSaveRootHandle } from '../lib/db'
 import { isFileSystemAccessSupported } from '../lib/browserSupport'
 import { readStoredIgnorePatterns, saveIgnorePatterns } from '../lib/ignorePatterns'
 import type { IndexEntry, QueryFilters } from '../lib/types'
@@ -10,6 +10,7 @@ type Status = 'empty' | 'fallback' | 'needs-permission' | 'scanning' | 'ready'
 
 const DEFAULT_FILTERS: QueryFilters = { query: '', sort: 'name' }
 const DEBOUNCE_MS = 130
+const STORAGE_FULL_NOTICE = "Browser storage is full — this folder's index won't be saved for next time."
 
 export interface FileSearchDeps {
   createWorker: () => Worker
@@ -22,6 +23,7 @@ export interface FileSearchDeps {
   loadEntries: () => Promise<IndexEntry[] | undefined>
   saveEntries: (entries: IndexEntry[]) => Promise<void>
   clearCache: () => Promise<void>
+  clearEntries: () => Promise<void>
 }
 
 export const defaultFileSearchDeps: FileSearchDeps = {
@@ -35,6 +37,7 @@ export const defaultFileSearchDeps: FileSearchDeps = {
   loadEntries: defaultLoadEntries,
   saveEntries: defaultSaveEntries,
   clearCache: defaultClearCache,
+  clearEntries: defaultClearEntries,
 }
 
 export interface FileSearchState {
@@ -43,6 +46,7 @@ export interface FileSearchState {
   progress: { scanned: number; skipped: number }
   skippedFolders: number
   ignoredFolders: number
+  notice?: string
   results: IndexEntry[]
   filters: QueryFilters
   ignorePatterns: string[]
@@ -79,7 +83,10 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
           skippedFolders: msg.skipped,
           ignoredFolders: msg.ignored,
         })
-        void deps.saveEntries(msg.entries)
+        deps.saveEntries(msg.entries).catch(async () => {
+          await deps.clearEntries().catch(() => {})
+          set({ notice: STORAGE_FULL_NOTICE })
+        })
         postQuery(get().filters)
       } else if (msg.type === 'query-result') {
         set({ results: msg.entries })
@@ -87,7 +94,11 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
     }
 
     async function restoreFromCache(handle: FileSystemDirectoryHandle) {
-      const cached = (await deps.loadEntries()) ?? []
+      const cached = await deps.loadEntries()
+      if (!cached) {
+        await startScan(handle) // root handle saved but entries missing (e.g. failed save): re-scan
+        return
+      }
       worker.postMessage({ type: 'restore', entries: cached })
       set({ status: 'ready', rootHandle: handle, skippedFolders: 0 })
       postQuery(get().filters)
@@ -145,8 +156,13 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
           if (isAbortError(err)) return
           throw err
         }
-        await deps.clearCache()
-        await deps.saveRootHandle(handle)
+        set({ notice: undefined })
+        try {
+          await deps.clearCache()
+          await deps.saveRootHandle(handle)
+        } catch {
+          set({ notice: STORAGE_FULL_NOTICE })
+        }
         await startScan(handle)
       },
 

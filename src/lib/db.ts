@@ -20,6 +20,10 @@ export function loadEntries(): Promise<IndexEntry[] | undefined> {
   return get(ENTRIES_KEY)
 }
 
+export function clearEntries(): Promise<void> {
+  return del(ENTRIES_KEY)
+}
+
 /** Clears the persisted folder + cache, e.g. when the user picks a new folder. */
 export async function clearCache(): Promise<void> {
   await Promise.all([del(ROOT_HANDLE_KEY), del(ENTRIES_KEY)])

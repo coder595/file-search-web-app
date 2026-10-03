@@ -28,6 +28,7 @@ export function makeFakeDeps(overrides: Partial<FileSearchDeps> = {}) {
     loadEntries: vi.fn().mockResolvedValue(undefined),
     saveEntries: vi.fn().mockResolvedValue(undefined),
     clearCache: vi.fn().mockResolvedValue(undefined),
+    clearEntries: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
   return { worker, deps }

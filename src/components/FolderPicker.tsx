@@ -7,6 +7,7 @@ export function FolderPicker() {
   const ignoredFolders = useFileSearchStore((s) => s.ignoredFolders)
   const selectFolder = useFileSearchStore((s) => s.selectFolder)
   const resumeAccess = useFileSearchStore((s) => s.resumeAccess)
+  const notice = useFileSearchStore((s) => s.notice)
   const refresh = useFileSearchStore((s) => s.refresh)
 
   const skippedNote = skippedFolders > 0 ? ` — ${skippedFolders} folders skipped (no permission)` : ''
@@ -54,6 +55,7 @@ export function FolderPicker() {
           </p>
         </>
       )}
+      {notice && <p role="status" className="text-sm text-amber-600 dark:text-amber-400">{notice}</p>}
     </div>
   )
 }

@@ -47,7 +47,7 @@ describe('FolderPicker', () => {
 
   it('shows a Refresh button once ready, and clicking it forces a re-scan', async () => {
     const handle = {} as FileSystemDirectoryHandle
-    const { deps, worker } = makeFakeDeps({ loadRootHandle: async () => handle })
+    const { deps, worker } = makeFakeDeps({ loadRootHandle: async () => handle, loadEntries: async () => [] })
     render(
       <FileSearchStoreProvider deps={deps}>
         <FolderPicker />
@@ -89,5 +89,23 @@ describe('FolderPicker', () => {
 
     expect(await screen.findByText(/3 folders ignored/i)).toBeInTheDocument()
     expect(screen.queryByText(/folders skipped/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the storage notice as a status message when set', async () => {
+    const handle = {} as FileSystemDirectoryHandle
+    const { deps } = makeFakeDeps({
+      showDirectoryPicker: async () => handle,
+      saveRootHandle: async () => {
+        throw new Error('quota')
+      },
+    })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: /select folder/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/browser storage is full/i)
   })
 })
