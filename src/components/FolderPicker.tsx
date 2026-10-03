@@ -82,7 +82,7 @@ export function FolderPicker() {
           <button
             type="button"
             onClick={keepFocus(refresh)}
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+            className="rounded border border-gray-500 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             Refresh
           </button>
@@ -97,7 +97,7 @@ export function FolderPicker() {
           <button
             type="button"
             onClick={keepFocus(retry)}
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+            className="rounded border border-gray-500 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             Retry
           </button>
