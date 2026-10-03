@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { sortEntries } from './sort'
 import type { IndexEntry } from '../lib/types'

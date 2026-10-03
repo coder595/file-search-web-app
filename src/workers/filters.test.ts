@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { matchesFilters } from './filters'
 import type { IndexEntry, QueryFilters } from '../lib/types'
