@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { FileSearchStoreProvider } from '../store/FileSearchStoreProvider'
@@ -107,5 +107,27 @@ describe('FolderPicker', () => {
     await userEvent.click(await screen.findByRole('button', { name: /select folder/i }))
 
     expect(await screen.findByRole('status')).toHaveTextContent(/browser storage is full/i)
+  })
+
+  it('shows the error as an alert with a Retry button that calls retry()', async () => {
+    const handle = {} as FileSystemDirectoryHandle
+    const { deps, worker, latestWorker } = makeFakeDeps({
+      loadRootHandle: async () => handle,
+      loadEntries: async () => [],
+    })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    await screen.findByRole('button', { name: /refresh/i })
+    act(() => worker.emit({ type: 'error', message: 'Folder vanished' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Folder vanished')
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }))
+
+    await waitFor(() =>
+      expect(latestWorker().posted).toContainEqual(expect.objectContaining({ type: 'scan', root: handle })),
+    )
   })
 })

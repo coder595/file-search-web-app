@@ -7,6 +7,8 @@ export function FolderPicker() {
   const ignoredFolders = useFileSearchStore((s) => s.ignoredFolders)
   const selectFolder = useFileSearchStore((s) => s.selectFolder)
   const resumeAccess = useFileSearchStore((s) => s.resumeAccess)
+  const error = useFileSearchStore((s) => s.error)
+  const retry = useFileSearchStore((s) => s.retry)
   const notice = useFileSearchStore((s) => s.notice)
   const refresh = useFileSearchStore((s) => s.refresh)
 
@@ -55,6 +57,19 @@ export function FolderPicker() {
           </p>
         </>
       )}
+      {status === 'error' && (
+        <>
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <button
+            type="button"
+            onClick={() => void retry()}
+            className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            Retry
+          </button>
+        </>
+      )}
+
       {notice && <p role="status" className="text-sm text-amber-600 dark:text-amber-400">{notice}</p>}
     </div>
   )

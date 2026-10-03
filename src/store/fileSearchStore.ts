@@ -6,7 +6,7 @@ import { readStoredIgnorePatterns, saveIgnorePatterns } from '../lib/ignorePatte
 import type { IndexEntry, QueryFilters } from '../lib/types'
 import type { WorkerOutMessage } from '../workers/scanController'
 
-type Status = 'empty' | 'fallback' | 'needs-permission' | 'scanning' | 'ready'
+type Status = 'empty' | 'fallback' | 'needs-permission' | 'scanning' | 'ready' | 'error'
 
 const DEFAULT_FILTERS: QueryFilters = { query: '', sort: 'name' }
 const DEBOUNCE_MS = 130
@@ -47,6 +47,7 @@ export interface FileSearchState {
   skippedFolders: number
   ignoredFolders: number
   notice?: string
+  error?: string
   results: IndexEntry[]
   filters: QueryFilters
   ignorePatterns: string[]
@@ -54,6 +55,7 @@ export interface FileSearchState {
   selectFolder: () => Promise<void>
   resumeAccess: () => Promise<void>
   refresh: () => Promise<void>
+  retry: () => Promise<void>
   setFilters: (partial: Partial<QueryFilters>) => void
   setIgnorePatterns: (patterns: string[]) => void
 }
@@ -62,8 +64,12 @@ function isAbortError(err: unknown): boolean {
   return err instanceof Error && err.name === 'AbortError'
 }
 
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message || err.name : String(err)
+}
+
 export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDeps) {
-  const worker = deps.createWorker()
+  let worker = deps.createWorker()
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
 
   const store = createStore<FileSearchState>((set, get) => {
@@ -71,7 +77,13 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
       worker.postMessage({ type: 'query', filters })
     }
 
-    worker.onmessage = (event: MessageEvent<WorkerOutMessage>) => {
+    function attachHandlers(w: Worker) {
+      w.onmessage = handleMessage
+      // Backstop for script-load failures / crashes (e.g. a CSP block); NOT the scan-error path.
+      w.onerror = () => set({ status: 'error', error: 'The search worker stopped unexpectedly.' })
+    }
+
+    function handleMessage(event: MessageEvent<WorkerOutMessage>) {
       const msg = event.data
       if (msg.type === 'progress') {
         set({ progress: { scanned: msg.scanned, skipped: msg.skipped } })
@@ -90,8 +102,11 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
         postQuery(get().filters)
       } else if (msg.type === 'query-result') {
         set({ results: msg.entries })
+      } else if (msg.type === 'error') {
+        set({ status: 'error', error: msg.message })
       }
     }
+    attachHandlers(worker)
 
     async function restoreFromCache(handle: FileSystemDirectoryHandle) {
       const cached = await deps.loadEntries()
@@ -124,26 +139,34 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
           set({ status: 'fallback' })
           return
         }
-        const handle = await deps.loadRootHandle()
-        if (!handle) {
-          set({ status: 'empty' })
-          return
-        }
-        const permission = await deps.checkPermission(handle)
-        if (permission === 'granted') {
-          await restoreFromCache(handle)
-        } else {
-          set({ status: 'needs-permission', rootHandle: handle })
+        try {
+          const handle = await deps.loadRootHandle()
+          if (!handle) {
+            set({ status: 'empty' })
+            return
+          }
+          const permission = await deps.checkPermission(handle)
+          if (permission === 'granted') {
+            await restoreFromCache(handle)
+          } else {
+            set({ status: 'needs-permission', rootHandle: handle })
+          }
+        } catch (err) {
+          set({ status: 'error', error: errorText(err) })
         }
       },
 
       async resumeAccess() {
         const handle = get().rootHandle
         if (!handle) return
-        const permission = await deps.requestPermission(handle)
-        if (permission === 'granted') {
-          await restoreFromCache(handle)
-        } else {
+        try {
+          const permission = await deps.requestPermission(handle)
+          if (permission === 'granted') {
+            await restoreFromCache(handle)
+          } else {
+            set({ status: 'needs-permission' })
+          }
+        } catch {
           set({ status: 'needs-permission' })
         }
       },
@@ -153,8 +176,8 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
         try {
           handle = await deps.showDirectoryPicker()
         } catch (err) {
-          if (isAbortError(err)) return
-          throw err
+          if (!isAbortError(err)) set({ status: 'error', error: errorText(err) })
+          return
         }
         set({ notice: undefined })
         try {
@@ -170,6 +193,24 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
         const handle = get().rootHandle
         if (!handle) return
         await startScan(handle)
+      },
+
+      async retry() {
+        worker.terminate()
+        worker = deps.createWorker()
+        attachHandlers(worker)
+        set({ error: undefined })
+        const handle = get().rootHandle
+        if (!handle) {
+          set({ status: 'empty' })
+          return
+        }
+        try {
+          if ((await deps.checkPermission(handle)) === 'granted') await startScan(handle)
+          else set({ status: 'needs-permission' })
+        } catch (err) {
+          set({ status: 'error', error: errorText(err) })
+        }
       },
 
       setFilters(partial) {

@@ -6,6 +6,14 @@ import type { WorkerOutMessage } from '../workers/scanController'
 class FakeWorker {
   posted: WorkerInMessage[] = []
   onmessage: ((e: MessageEvent<WorkerOutMessage>) => void) | null = null
+  onerror: ((e: ErrorEvent) => void) | null = null
+  terminated = false
+  terminate() {
+    this.terminated = true
+  }
+  crash() {
+    this.onerror?.({} as ErrorEvent)
+  }
   postMessage(msg: WorkerInMessage) {
     this.posted.push(msg)
   }
@@ -17,8 +25,16 @@ class FakeWorker {
 /** Builds an in-memory FileSearchDeps for tests — no real Worker/IndexedDB/FS Access API. */
 export function makeFakeDeps(overrides: Partial<FileSearchDeps> = {}) {
   const worker = new FakeWorker()
+  const workers = [worker]
+  let created = false
   const deps: FileSearchDeps = {
-    createWorker: () => worker as unknown as Worker,
+    createWorker: () => {
+      // First call hands out `worker`; later calls (retry) get a fresh one.
+      const w = workers.length === 1 && !created ? worker : new FakeWorker()
+      created = true
+      if (w !== worker) workers.push(w)
+      return w as unknown as Worker
+    },
     isSupported: () => true,
     showDirectoryPicker: vi.fn(),
     checkPermission: vi.fn().mockResolvedValue('granted'),
@@ -31,5 +47,5 @@ export function makeFakeDeps(overrides: Partial<FileSearchDeps> = {}) {
     clearEntries: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
-  return { worker, deps }
+  return { worker, workers, latestWorker: () => workers[workers.length - 1], deps }
 }

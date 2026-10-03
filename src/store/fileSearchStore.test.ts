@@ -307,4 +307,98 @@ describe('createFileSearchStore', () => {
       expect(worker.posted.some((m) => m.type === 'scan')).toBe(false)
     })
   })
+
+  describe('errors and retry [B3]', () => {
+    const handle = {} as FileSystemDirectoryHandle
+
+    it('an error message from the worker moves the store to the error status', async () => {
+      const { worker, deps } = makeDeps()
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      worker.emit({ type: 'error', message: 'boom' })
+      expect(store.getState()).toMatchObject({ status: 'error', error: 'boom' })
+    })
+
+    it('worker.onerror (crash / blocked script) moves the store to the error status', async () => {
+      const { worker, deps } = makeDeps()
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      worker.crash()
+      expect(store.getState()).toMatchObject({
+        status: 'error',
+        error: 'The search worker stopped unexpectedly.',
+      })
+    })
+
+    it('retry() replaces the worker, terminates the old one, and re-scans on the new one', async () => {
+      const { worker, latestWorker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle) })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      store.getState().setFilters({ query: 'keep' })
+      worker.emit({ type: 'error', message: 'boom' })
+
+      await store.getState().retry()
+
+      const fresh = latestWorker()
+      expect(fresh).not.toBe(worker)
+      expect(worker.terminated).toBe(true)
+      expect(fresh.posted).toContainEqual(expect.objectContaining({ type: 'scan', root: handle }))
+      expect(store.getState()).toMatchObject({ status: 'scanning', error: undefined })
+      expect(store.getState().filters.query).toBe('keep')
+      // handlers are re-attached on the new worker
+      fresh.emit({ type: 'error', message: 'again' })
+      expect(store.getState().status).toBe('error')
+    })
+
+    it('retry() with permission needing a prompt goes to needs-permission', async () => {
+      const { worker, deps } = makeDeps({
+        loadRootHandle: vi.fn().mockResolvedValue(handle),
+        loadEntries: vi.fn().mockResolvedValue([]),
+      })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      worker.emit({ type: 'error', message: 'boom' })
+      vi.mocked(deps.checkPermission).mockResolvedValue('prompt')
+
+      await store.getState().retry()
+      expect(store.getState().status).toBe('needs-permission')
+    })
+
+    it('retry() with no root handle goes back to empty', async () => {
+      const { worker, deps } = makeDeps()
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      worker.emit({ type: 'error', message: 'boom' })
+
+      await store.getState().retry()
+      expect(store.getState()).toMatchObject({ status: 'empty', error: undefined })
+    })
+
+    it('init() failing (storage or permission throws) lands in the error state', async () => {
+      const { deps } = makeDeps({ loadRootHandle: vi.fn().mockRejectedValue(new Error('idb down')) })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      expect(store.getState()).toMatchObject({ status: 'error', error: 'idb down' })
+    })
+
+    it('a non-abort showDirectoryPicker failure becomes an error state, not a rejection', async () => {
+      const { deps } = makeDeps({ showDirectoryPicker: vi.fn().mockRejectedValue(new Error('picker broke')) })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await expect(store.getState().selectFolder()).resolves.toBeUndefined()
+      expect(store.getState()).toMatchObject({ status: 'error', error: 'picker broke' })
+    })
+
+    it('resumeAccess() with requestPermission throwing stays needs-permission', async () => {
+      const { deps } = makeDeps({
+        loadRootHandle: vi.fn().mockResolvedValue(handle),
+        checkPermission: vi.fn().mockResolvedValue('prompt'),
+        requestPermission: vi.fn().mockRejectedValue(new Error('no gesture')),
+      })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await expect(store.getState().resumeAccess()).resolves.toBeUndefined()
+      expect(store.getState().status).toBe('needs-permission')
+    })
+  })
 })

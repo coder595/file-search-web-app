@@ -182,4 +182,69 @@ describe('ScanController.restore', () => {
     const result = posted.at(-1) as { entries: unknown[] }
     expect(result.entries).toEqual([])
   })
+
+  describe('errors [B3]', () => {
+    const failingRoot = {
+      kind: 'directory',
+      name: 'root',
+      entries: () => ({
+        [Symbol.asyncIterator]: () => ({
+          next: () => Promise.reject(new DOMException('gone', 'NotFoundError')),
+        }),
+      }),
+    } as unknown as FileSystemDirectoryHandle
+
+    it('posts an error message when the walk fails with a non-permission error', async () => {
+      const posted: unknown[] = []
+      const controller = new ScanController((msg) => posted.push(msg))
+      await controller.scan(failingRoot)
+      expect(posted).toEqual([{ type: 'error', message: 'gone' }])
+    })
+
+    it('falls back to the error name when the message is empty', async () => {
+      const posted: unknown[] = []
+      const controller = new ScanController((msg) => posted.push(msg))
+      const root = {
+        kind: 'directory',
+        name: 'r',
+        entries: () => ({
+          [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(new DOMException('', 'NotFoundError')) }),
+        }),
+      } as unknown as FileSystemDirectoryHandle
+      await controller.scan(root)
+      expect(posted).toEqual([{ type: 'error', message: 'NotFoundError' }])
+    })
+
+    it('stays silent when a superseded scan fails', async () => {
+      const posted: unknown[] = []
+      const controller = new ScanController((msg) => posted.push(msg))
+      const gate = deferred<void>()
+      const slowFailing = {
+        kind: 'directory',
+        name: 'root',
+        entries: () => ({
+          [Symbol.asyncIterator]: () => ({
+            next: async () => {
+              await gate.promise
+              throw new DOMException('gone', 'NotFoundError')
+            },
+          }),
+        }),
+      } as unknown as FileSystemDirectoryHandle
+
+      const first = controller.scan(slowFailing)
+      await controller.scan(dir('ok', [file('a.txt')]) as unknown as FileSystemDirectoryHandle)
+      gate.resolve()
+      await first
+
+      expect(posted.filter((m) => (m as { type: string }).type === 'error')).toEqual([])
+    })
+
+    it('restore() posts an error instead of throwing when indexing fails', () => {
+      const posted: unknown[] = []
+      const controller = new ScanController((msg) => posted.push(msg))
+      expect(() => controller.restore([null as never])).not.toThrow()
+      expect(posted).toEqual([{ type: 'error', message: expect.any(String) as string }])
+    })
+  })
 })
