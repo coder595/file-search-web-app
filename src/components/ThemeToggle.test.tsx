@@ -35,4 +35,9 @@ describe('ThemeToggle', () => {
     expect(screen.getByRole('button', { name: /switch to light/i })).toBeInTheDocument()
     expect(document.documentElement.classList.contains('dark')).toBe(true)
   })
+
+  it('hides the decorative emoji from assistive tech', () => {
+    render(<ThemeToggle />)
+    expect(screen.getByRole('button').querySelector('[aria-hidden="true"]')).toHaveTextContent('🌙')
+  })
 })

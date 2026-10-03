@@ -19,7 +19,7 @@ describe('App', () => {
     ;(window as unknown as { showDirectoryPicker: unknown }).showDirectoryPicker = () => {}
     const { deps } = makeFakeDeps()
     render(<App deps={deps} />)
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByText(/read-only fallback mode/i)).not.toBeInTheDocument()
   })
 
   it('renders the app heading', () => {

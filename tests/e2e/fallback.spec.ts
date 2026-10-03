@@ -6,7 +6,7 @@ const FIXTURE = path.resolve(import.meta.dirname, 'fixtures/fallback-folder')
 
 test('real fallback: banner, folder pick, listing and search', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('status')).toContainText(/read-only fallback mode/i)
+  await expect(page.getByRole('status').filter({ hasText: /read-only/i })).toContainText(/read-only fallback mode/i)
 
   const chooser = page.waitForEvent('filechooser')
   await page.getByRole('button', { name: /select folder \(read-only\)/i }).click()

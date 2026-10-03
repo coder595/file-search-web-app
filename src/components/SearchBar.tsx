@@ -11,7 +11,7 @@ export function SearchBar() {
   return (
     <input
       ref={inputRef}
-      role="searchbox"
+      aria-label="Search files by name"
       type="search"
       value={query}
       placeholder="Search files by name (ext:pdf or .pdf to filter by extension)"

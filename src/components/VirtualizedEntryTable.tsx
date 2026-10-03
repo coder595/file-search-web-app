@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { IndexEntry } from '../lib/types'
 
 const ROW_HEIGHT = 36
@@ -36,7 +36,8 @@ function formatDate(epochMs: number): string {
  */
 export function VirtualizedEntryTable({ entries }: { entries: IndexEntry[] }) {
   const parentRef = useRef<HTMLDivElement>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const listId = useId()
+  const [toast, setToast] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
 
   // oxlint-disable-next-line react/incompatible-library -- TanStack Virtual returns non-memoizable functions; this component is intentionally not compiler-memoized
@@ -53,6 +54,13 @@ export function VirtualizedEntryTable({ entries }: { entries: IndexEntry[] }) {
   useEffect(() => {
     setSelectedIndex(0)
   }, [entries])
+
+  // Clear the (always-mounted) status text so a repeat copy re-announces.
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(''), 4000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   async function copyPath(entry: IndexEntry) {
     try {
@@ -109,17 +117,20 @@ export function VirtualizedEntryTable({ entries }: { entries: IndexEntry[] }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {toast && (
-        <p role="status" className="px-2 pb-1 text-xs text-gray-500 dark:text-gray-400">
-          {toast}
-        </p>
-      )}
+      <p role="status" aria-atomic="true" className="px-2 pb-1 text-xs text-gray-500 dark:text-gray-400">
+        {toast}
+      </p>
+      <p id={`${listId}-hint`} className="sr-only">
+        Press Enter to copy the selected path.
+      </p>
       <div
         ref={parentRef}
-        className="min-h-0 flex-1 overflow-auto outline-none"
+        className="min-h-0 flex-1 overflow-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 dark:focus-visible:outline-blue-400"
         role="listbox"
+        aria-label="Search results"
+        aria-describedby={`${listId}-hint`}
         tabIndex={0}
-        aria-activedescendant={selectedEntry ? `option-${selectedEntry.id}` : undefined}
+        aria-activedescendant={selectedEntry ? `${listId}-opt-${selectedIndex}` : undefined}
         onKeyDown={handleKeyDown}
       >
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
@@ -129,17 +140,22 @@ export function VirtualizedEntryTable({ entries }: { entries: IndexEntry[] }) {
             return (
               <div
                 key={item.id}
-                id={`option-${item.id}`}
+                id={`${listId}-opt-${virtualRow.index}`}
                 role="option"
                 aria-selected={selected}
-                onClick={() => void copyPath(item)}
+                aria-posinset={virtualRow.index + 1}
+                aria-setsize={entries.length}
+                onClick={() => {
+                  setSelectedIndex(virtualRow.index)
+                  void copyPath(item)
+                }}
                 title="Click to copy path"
                 className={`absolute left-0 top-0 flex w-full cursor-pointer items-center gap-4 border-b border-gray-100 px-2 text-sm dark:border-gray-700 ${
                   selected ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
                 style={{ height: ROW_HEIGHT, transform: `translateY(${virtualRow.start}px)` }}
               >
-                <span className="w-6 shrink-0 text-gray-400 dark:text-gray-500">
+                <span aria-hidden="true" className="w-6 shrink-0 text-gray-400 dark:text-gray-500">
                   {item.kind === 'directory' ? '📁' : '📄'}
                 </span>
                 <span className="min-w-0 flex-1 truncate font-medium text-gray-900 dark:text-gray-100">

@@ -44,4 +44,15 @@ describe('SearchBar', () => {
     await userEvent.keyboard('/')
     expect(screen.getByRole('searchbox')).toHaveFocus()
   })
+
+  it('has an accessible name and relies on the implicit searchbox role', () => {
+    const { deps } = makeFakeDeps()
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <SearchBar />
+      </FileSearchStoreProvider>,
+    )
+    const box = screen.getByRole('searchbox', { name: 'Search files by name' })
+    expect(box).not.toHaveAttribute('role')
+  })
 })

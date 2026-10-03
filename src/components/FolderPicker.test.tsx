@@ -108,7 +108,8 @@ describe('FolderPicker', () => {
     )
     await userEvent.click(await screen.findByRole('button', { name: /select folder/i }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent(/browser storage is full/i)
+    expect(await screen.findByText(/browser storage is full/i)).toBe(screen.getByRole('status'))
+    expect(screen.getAllByRole('status')).toHaveLength(1)
   })
 
   it('shows the error as an alert with a Retry button that calls retry()', async () => {
@@ -129,6 +130,7 @@ describe('FolderPicker', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Folder vanished')
     await userEvent.click(screen.getByRole('button', { name: /retry/i }))
+    expect(document.activeElement).not.toBe(document.body)
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
 
     await waitFor(() =>
@@ -150,5 +152,31 @@ describe('FolderPicker', () => {
       </FileSearchStoreProvider>,
     )
     expect(await screen.findByText(/Restoring 1,234 cached entries…/)).toBeInTheDocument()
+  })
+
+  it('announces progress through one persistent status region, not a mounted-late one', async () => {
+    const { deps } = makeFakeDeps()
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    const region = await screen.findByRole('status')
+    await userEvent.click(await screen.findByRole('button', { name: /select folder/i }))
+    expect(await screen.findByText(/scanned/i)).toBe(region)
+    expect(region).toHaveAttribute('aria-atomic', 'true')
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+  })
+
+  it('keeps focus inside the picker after Select Folder unmounts', async () => {
+    const { deps } = makeFakeDeps({ showDirectoryPicker: async () => ({}) as FileSystemDirectoryHandle })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: /select folder/i }))
+    await screen.findByText(/scanned/i)
+    expect(document.activeElement).not.toBe(document.body)
   })
 })

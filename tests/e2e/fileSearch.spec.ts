@@ -144,7 +144,7 @@ test.describe('File Search — fallback banner (Firefox/Safari simulation)', () 
     })
     await page.goto('/')
 
-    await expect(page.getByRole('status')).toContainText(/read-only fallback mode/i)
+    await expect(page.getByRole('status').filter({ hasText: /read-only/i })).toContainText(/read-only fallback mode/i)
     await expect(page.getByRole('button', { name: /select folder \(read-only\)/i })).toBeVisible()
   })
 })

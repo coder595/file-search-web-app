@@ -22,6 +22,7 @@ export function FiltersPanel() {
   }
 
   function removePattern(pattern: string) {
+    document.getElementById('ignore-pattern-input')?.focus() // the clicked chip is about to unmount
     setIgnorePatterns(ignorePatterns.filter((p) => p !== pattern))
   }
 

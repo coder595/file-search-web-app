@@ -88,4 +88,11 @@ describe('FiltersPanel', () => {
 
     expect(screen.queryByText('node_modules')).not.toBeInTheDocument()
   })
+
+  it('removing an ignore chip moves focus to the add-pattern input', async () => {
+    renderPanel()
+    const [remove] = screen.getAllByRole('button', { name: /^remove /i })
+    await userEvent.click(remove)
+    expect(screen.getByLabelText('Add ignore pattern')).toHaveFocus()
+  })
 })

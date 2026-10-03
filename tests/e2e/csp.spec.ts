@@ -66,6 +66,6 @@ test('live path: CSP active, worker loads, zero violations', async ({ page }) =>
 test('fallback path: banner shows, zero violations', async ({ page }) => {
   const { check } = await trackViolations(page, true)
   await page.goto('/')
-  await expect(page.getByRole('status')).toContainText(/read-only fallback mode/i)
+  await expect(page.getByRole('status').filter({ hasText: /read-only/i })).toContainText(/read-only fallback mode/i)
   await check(false)
 })
