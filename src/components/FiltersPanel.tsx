@@ -3,7 +3,7 @@ import { useFileSearchStore } from '../store/useFileSearchStore'
 import type { QueryFilters } from '../lib/types'
 
 const labelClass = 'flex flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-400'
-const inputClass = 'rounded border border-gray-500 px-2 py-1 text-sm dark:border-gray-500 dark:bg-gray-800 dark:text-gray-100'
+const inputClass = 'rounded border border-gray-500 px-2 py-1 text-sm dark:bg-gray-800 dark:text-gray-100'
 
 export function FiltersPanel() {
   const filters = useFileSearchStore((s) => s.filters)

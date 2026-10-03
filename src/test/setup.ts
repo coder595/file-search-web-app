@@ -14,8 +14,8 @@ class ResizeObserverStub {
 // compute a visible range against.
 // (guarded: pure-logic tests opt into the node environment, which has no DOM globals)
 if (typeof HTMLElement !== 'undefined') {
-Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, value: 500 })
-Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, value: 500 })
+  Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, value: 500 })
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, value: 500 })
 }
 
 // jsdom has no Worker implementation. Component-tree smoke tests that render

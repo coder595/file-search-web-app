@@ -47,7 +47,10 @@ export function FallbackFileList() {
       const files = await directoryOpen({ recursive: true })
       setEntries(filesToEntries(files as File[]))
     } catch (err) {
-      if (!isAbortError(err)) setError('Could not read that folder. Please try again.')
+      if (!isAbortError(err)) {
+        console.error(err)
+        setError('Could not read that folder. Please try again.')
+      }
     } finally {
       setScanning(false)
     }
@@ -59,7 +62,7 @@ export function FallbackFileList() {
         <button
           type="button"
           onClick={() => void pickFolder()}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700"
+          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
           Select Folder (read-only)
         </button>
@@ -77,7 +80,7 @@ export function FallbackFileList() {
             value={query}
             placeholder="Search files by name"
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full max-w-sm rounded border border-gray-500 px-3 py-2 text-sm dark:border-gray-500 dark:bg-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+            className="w-full max-w-sm rounded border border-gray-500 px-3 py-2 text-sm dark:bg-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
           />
         )}
       </div>

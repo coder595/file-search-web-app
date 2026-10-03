@@ -67,7 +67,7 @@ export function FolderPicker() {
           ref={selectRef}
           type="button"
           onClick={keepFocus(selectFolder)}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700"
+          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
           Select Folder
         </button>
@@ -77,7 +77,7 @@ export function FolderPicker() {
         <button
           type="button"
           onClick={keepFocus(resumeAccess)}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700"
+          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
           Resume access to folder
         </button>
@@ -88,7 +88,7 @@ export function FolderPicker() {
           <button
             type="button"
             onClick={keepFocus(refresh)}
-            className="rounded border border-gray-500 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-800"
+            className="rounded border border-gray-500 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             Refresh
           </button>
@@ -106,7 +106,7 @@ export function FolderPicker() {
           <button
             type="button"
             onClick={keepFocus(retry)}
-            className="rounded border border-gray-500 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-800"
+            className="rounded border border-gray-500 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             Retry
           </button>
@@ -114,7 +114,7 @@ export function FolderPicker() {
             <button
               type="button"
               onClick={keepFocus(selectFolder)}
-              className="rounded border border-gray-500 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-800"
+              className="rounded border border-gray-500 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
             >
               Choose a different folder
             </button>
