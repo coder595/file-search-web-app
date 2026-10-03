@@ -55,7 +55,7 @@ export function FolderPicker() {
   const ignoredNote = ignoredFolders > 0 ? ` — ${ignoredFolders} folders ignored` : ''
 
   return (
-    <div ref={wrapperRef} tabIndex={-1} className="flex flex-wrap items-center gap-3 outline-none">
+    <div ref={wrapperRef} tabIndex={-1} className="flex flex-wrap items-center gap-x-3 gap-y-1 outline-none">
       {status === 'empty' && (
         <button
           ref={selectRef}
@@ -111,7 +111,7 @@ export function FolderPicker() {
       <p role="status" aria-atomic="true" className="sr-only">
         {announce}
       </p>
-      <p role="status" className="text-sm text-amber-700 dark:text-amber-400">
+      <p role="status" className="basis-full text-sm text-amber-700 dark:text-amber-400">
         {notice}
       </p>
     </div>
