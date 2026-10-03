@@ -89,11 +89,15 @@ export class ScanController {
 
   /** Search + filter + sort, all here so the UI never duplicates match logic. */
   query(filters: QueryFilters): void {
-    const parsed = parseQuery(filters.query)
-    const effective: QueryFilters = { ...filters, extension: filters.extension ?? parsed.extension }
-    const matched = this.searchIndex
-      .search(parsed.text, { fuzzy: filters.fuzzy })
-      .filter((entry) => matchesFilters(entry, effective))
-    this.post({ type: 'query-result', entries: sortEntries(matched, filters.sort) })
+    try {
+      const parsed = parseQuery(filters.query)
+      const effective: QueryFilters = { ...filters, extension: filters.extension ?? parsed.extension }
+      const matched = this.searchIndex
+        .search(parsed.text, { fuzzy: filters.fuzzy })
+        .filter((entry) => matchesFilters(entry, effective))
+      this.post({ type: 'query-result', entries: sortEntries(matched, filters.sort) })
+    } catch (err) {
+      this.post({ type: 'error', message: errorMessage(err) })
+    }
   }
 }

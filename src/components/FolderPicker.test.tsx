@@ -98,7 +98,7 @@ describe('FolderPicker', () => {
     const { deps } = makeFakeDeps({
       showDirectoryPicker: async () => handle,
       saveRootHandle: async () => {
-        throw new Error('quota')
+        throw Object.assign(new Error('full'), { name: 'QuotaExceededError' })
       },
     })
     render(
@@ -129,6 +129,7 @@ describe('FolderPicker', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Folder vanished')
     await userEvent.click(screen.getByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
 
     await waitFor(() =>
       expect(latestWorker().posted).toContainEqual(expect.objectContaining({ type: 'scan', root: handle })),

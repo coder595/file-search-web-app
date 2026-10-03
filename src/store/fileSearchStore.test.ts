@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_IGNORE_PATTERNS } from '../lib/ignorePatterns'
 import type { IndexEntry, QueryFilters } from '../lib/types'
 import { makeFakeDeps as makeDeps } from '../test/fakeFileSearchDeps'
+import type { WorkerOutMessage } from '../workers/scanController'
 import { createFileSearchStore } from './fileSearchStore'
+
+const quotaError = () => Object.assign(new Error('full'), { name: 'QuotaExceededError' })
 
 describe('createFileSearchStore', () => {
   beforeEach(() => {
@@ -225,7 +228,7 @@ describe('createFileSearchStore', () => {
       const handle = {} as FileSystemDirectoryHandle
       const { worker, deps } = makeDeps({
         showDirectoryPicker: vi.fn().mockResolvedValue(handle),
-        saveEntries: vi.fn().mockRejectedValue(new Error('QuotaExceededError')),
+        saveEntries: vi.fn().mockRejectedValue(quotaError()),
       })
       const store = createFileSearchStore(deps)
       await store.getState().init()
@@ -240,11 +243,13 @@ describe('createFileSearchStore', () => {
 
     it('a failing clearEntries after a failed save is also swallowed', async () => {
       const { worker, deps } = makeDeps({
-        saveEntries: vi.fn().mockRejectedValue(new Error('quota')),
+        saveEntries: vi.fn().mockRejectedValue(quotaError()),
         clearEntries: vi.fn().mockRejectedValue(new Error('nope')),
+        showDirectoryPicker: vi.fn().mockResolvedValue({} as FileSystemDirectoryHandle),
       })
       const store = createFileSearchStore(deps)
       await store.getState().init()
+      await store.getState().selectFolder()
       worker.emit({ type: 'scan-complete', scanned: 0, skipped: 0, ignored: 0, entries: [] })
       await vi.advanceTimersByTimeAsync(0)
 
@@ -255,7 +260,7 @@ describe('createFileSearchStore', () => {
       const handle = {} as FileSystemDirectoryHandle
       const { worker, deps } = makeDeps({
         showDirectoryPicker: vi.fn().mockResolvedValue(handle),
-        saveRootHandle: vi.fn().mockRejectedValue(new Error('quota')),
+        saveRootHandle: vi.fn().mockRejectedValue(quotaError()),
       })
       const store = createFileSearchStore(deps)
       await store.getState().init()
@@ -269,7 +274,7 @@ describe('createFileSearchStore', () => {
       const handle = {} as FileSystemDirectoryHandle
       const { worker, deps } = makeDeps({
         showDirectoryPicker: vi.fn().mockResolvedValue(handle),
-        saveEntries: vi.fn().mockRejectedValueOnce(new Error('quota')),
+        saveEntries: vi.fn().mockRejectedValueOnce(quotaError()),
       })
       const store = createFileSearchStore(deps)
       await store.getState().init()
@@ -423,6 +428,117 @@ describe('createFileSearchStore', () => {
       worker.emit({ type: 'restore-complete', count: 1 })
       expect(store.getState().status).toBe('ready')
       expect(worker.posted.some((m) => m.type === 'query')).toBe(true)
+    })
+  })
+
+  describe('review hardening [B2 fix wave]', () => {
+    const handle = {} as FileSystemDirectoryHandle
+    const quota = Object.assign(new Error('full'), { name: 'QuotaExceededError' })
+    const GENERIC = "Couldn't save this folder's index for next time."
+    const scanComplete: WorkerOutMessage = { type: 'scan-complete', scanned: 0, skipped: 0, ignored: 0, entries: [] }
+
+    it('1. late scan-complete / progress / restore-complete do not override error or a different status', async () => {
+      const { worker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle), loadEntries: vi.fn().mockResolvedValue([]) })
+      const store = createFileSearchStore(deps)
+      await store.getState().init() // restoring
+      worker.emit({ type: 'error', message: 'boom' })
+      worker.emit({ ...scanComplete })
+      worker.emit({ type: 'restore-complete', count: 0 })
+      expect(store.getState().status).toBe('error')
+      expect(deps.saveEntries).not.toHaveBeenCalled()
+
+      await store.getState().refresh() // scanning
+      worker.emit({ type: 'restore-complete', count: 0 })
+      expect(store.getState().status).toBe('scanning')
+
+      worker.emit({ ...scanComplete })
+      worker.emit({ type: 'progress', scanned: 99, skipped: 0 })
+      expect(store.getState().progress.scanned).toBe(0)
+    })
+
+    it('2. postMessage throwing in startScan or restore lands in error; startScan keeps notice, clears error', async () => {
+      const { worker, deps } = makeDeps({
+        loadRootHandle: vi.fn().mockResolvedValue(handle),
+        loadEntries: vi.fn().mockResolvedValue([]),
+      })
+      const store = createFileSearchStore(deps)
+      vi.spyOn(worker, 'postMessage').mockImplementation(() => {
+        throw new Error('DataCloneError')
+      })
+      await store.getState().init()
+      expect(store.getState()).toMatchObject({ status: 'error', error: 'DataCloneError' })
+      await store.getState().refresh()
+      expect(store.getState()).toMatchObject({ status: 'error', error: 'DataCloneError' })
+
+      vi.mocked(worker.postMessage).mockImplementation(() => {})
+      store.setState({ notice: 'keep me' })
+      await store.getState().refresh()
+      expect(store.getState()).toMatchObject({ status: 'scanning', error: undefined, notice: 'keep me' })
+    })
+
+    it('3. resumeAccess: failure after a grant is an error, not needs-permission', async () => {
+      const { worker, deps } = makeDeps({
+        loadRootHandle: vi.fn().mockResolvedValue(handle),
+        checkPermission: vi.fn().mockResolvedValue('prompt'),
+        loadEntries: vi.fn().mockRejectedValue(new Error('idb read failed')),
+      })
+      void worker
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await store.getState().resumeAccess()
+      expect(store.getState()).toMatchObject({ status: 'error', error: 'idb read failed' })
+    })
+
+    it('4. quota error gets the storage-full notice, other save errors the generic one, and all are logged', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      for (const [err, expected] of [[quota, "Browser storage is full — this folder's index won't be saved for next time."], [new Error('other'), GENERIC]] as const) {
+        const { worker, deps } = makeDeps({
+          showDirectoryPicker: vi.fn().mockResolvedValue(handle),
+          saveEntries: vi.fn().mockRejectedValue(err),
+          clearEntries: vi.fn().mockRejectedValue(new Error('clear failed')),
+        })
+        const store = createFileSearchStore(deps)
+        await store.getState().init()
+        await store.getState().selectFolder()
+        spy.mockClear()
+        worker.emit({ ...scanComplete })
+        await vi.advanceTimersByTimeAsync(0)
+        expect(store.getState().notice).toBe(expected)
+        expect(spy).toHaveBeenCalledWith(expect.anything(), err)
+        expect(spy).toHaveBeenCalledTimes(2) // save error + swallowed clearEntries rejection
+      }
+      const { deps } = makeDeps({
+        showDirectoryPicker: vi.fn().mockResolvedValue(handle),
+        saveRootHandle: vi.fn().mockRejectedValue(new Error('other')),
+      })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await store.getState().selectFolder()
+      expect(store.getState().notice).toBe(GENERIC)
+      spy.mockRestore()
+    })
+
+    it('5. retry() detaches the old worker handlers before terminating it', async () => {
+      const { worker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle), loadEntries: vi.fn().mockResolvedValue([]) })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await store.getState().retry()
+      expect(worker.onmessage).toBeNull()
+      expect(worker.onerror).toBeNull()
+    })
+
+    it('7. setIgnorePatterns updates state even if localStorage throws, and logs', () => {
+      const { deps } = makeDeps()
+      const store = createFileSearchStore(deps)
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw quotaError()
+      })
+      expect(() => store.getState().setIgnorePatterns(['x'])).not.toThrow()
+      expect(store.getState().ignorePatterns).toEqual(['x'])
+      expect(spy).toHaveBeenCalled()
+      setItem.mockRestore()
+      spy.mockRestore()
     })
   })
 })

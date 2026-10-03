@@ -259,4 +259,11 @@ describe('ScanController.restore', () => {
     controller.query({ query: 'a', sort: 'name' })
     expect(posted.at(-1)?.type).toBe('query-result')
   })
+
+  it('6. query() posts an error instead of throwing when search fails', () => {
+    const posted: unknown[] = []
+    const controller = new ScanController((msg) => posted.push(msg))
+    expect(() => controller.query(null as never)).not.toThrow()
+    expect(posted).toEqual([{ type: 'error', message: expect.any(String) as string }])
+  })
 })
