@@ -130,6 +130,9 @@ describe('FolderPicker', () => {
     act(() => worker.emit({ type: 'error', message: 'Folder vanished' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Folder vanished')
+    // Regression: FINDING-007 — the alert showed only raw browser/worker text
+    // Found by /design-review on 2026-10-03
+    expect(screen.getByRole('alert')).toHaveTextContent(/^Couldn't read that folder\./)
     await userEvent.click(screen.getByRole('button', { name: /retry/i }))
     expect(document.activeElement).not.toBe(document.body)
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())

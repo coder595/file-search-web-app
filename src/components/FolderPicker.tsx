@@ -93,7 +93,10 @@ export function FolderPicker() {
       )}
       {status === 'error' && (
         <>
-          <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <p role="alert" className="text-sm text-red-700 dark:text-red-400">
+            Couldn&apos;t read that folder.{' '}
+            <span className="text-xs text-gray-600 dark:text-gray-400">{error}</span>
+          </p>
           <button
             type="button"
             onClick={keepFocus(retry)}
