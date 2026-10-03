@@ -124,7 +124,7 @@ export function FiltersPanel() {
                 type="button"
                 aria-label={`Remove ${pattern}`}
                 onClick={() => removePattern(pattern)}
-                className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-100"
+                className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
               >
                 ×
               </button>
@@ -140,7 +140,7 @@ export function FiltersPanel() {
             placeholder="folder name…"
           />
         </div>
-        <p className="text-xs text-gray-400 dark:text-gray-500">Click Refresh to apply</p>
+        <p className="text-xs text-gray-600 dark:text-gray-400">Click Refresh to apply</p>
       </div>
     </div>
   )

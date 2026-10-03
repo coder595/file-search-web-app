@@ -61,7 +61,7 @@ export function FolderPicker() {
           ref={selectRef}
           type="button"
           onClick={keepFocus(selectFolder)}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700"
         >
           Select Folder
         </button>
@@ -71,7 +71,7 @@ export function FolderPicker() {
         <button
           type="button"
           onClick={keepFocus(resumeAccess)}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700"
         >
           Resume access to folder
         </button>
@@ -108,7 +108,7 @@ export function FolderPicker() {
       <p role="status" aria-atomic="true" className="sr-only">
         {announce}
       </p>
-      <p role="status" className="text-sm text-amber-600 dark:text-amber-400">
+      <p role="status" className="text-sm text-amber-700 dark:text-amber-400">
         {notice}
       </p>
     </div>

@@ -16,7 +16,7 @@ export function SearchBar() {
       value={query}
       placeholder="Search files by name (ext:pdf or .pdf to filter by extension)"
       onChange={(e) => setFilters({ query: e.target.value })}
-      className="w-full rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400"
+      className="w-full rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
     />
   )
 }
