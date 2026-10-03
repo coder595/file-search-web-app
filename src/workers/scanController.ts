@@ -9,6 +9,7 @@ export type WorkerOutMessage =
   | { type: 'progress'; scanned: number; skipped: number }
   | { type: 'scan-complete'; scanned: number; skipped: number; ignored: number; entries: IndexEntry[] }
   | { type: 'query-result'; entries: IndexEntry[] }
+  | { type: 'restore-complete'; count: number }
   | { type: 'error'; message: string }
 
 const PROGRESS_BATCH_SIZE = 200
@@ -80,6 +81,7 @@ export class ScanController {
     try {
       this.searchIndex.clear()
       for (const entry of entries) this.searchIndex.add(entry)
+      this.post({ type: 'restore-complete', count: entries.length })
     } catch (err) {
       this.post({ type: 'error', message: errorMessage(err) })
     }

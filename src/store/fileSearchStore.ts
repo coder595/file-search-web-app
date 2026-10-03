@@ -6,7 +6,7 @@ import { readStoredIgnorePatterns, saveIgnorePatterns } from '../lib/ignorePatte
 import type { IndexEntry, QueryFilters } from '../lib/types'
 import type { WorkerOutMessage } from '../workers/scanController'
 
-type Status = 'empty' | 'fallback' | 'needs-permission' | 'scanning' | 'ready' | 'error'
+type Status = 'empty' | 'fallback' | 'needs-permission' | 'scanning' | 'restoring' | 'ready' | 'error'
 
 const DEFAULT_FILTERS: QueryFilters = { query: '', sort: 'name' }
 const DEBOUNCE_MS = 130
@@ -48,6 +48,7 @@ export interface FileSearchState {
   ignoredFolders: number
   notice?: string
   error?: string
+  restoringCount: number
   results: IndexEntry[]
   filters: QueryFilters
   ignorePatterns: string[]
@@ -102,6 +103,9 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
         postQuery(get().filters)
       } else if (msg.type === 'query-result') {
         set({ results: msg.entries })
+      } else if (msg.type === 'restore-complete') {
+        set({ status: 'ready' })
+        postQuery(get().filters)
       } else if (msg.type === 'error') {
         set({ status: 'error', error: msg.message })
       }
@@ -114,9 +118,8 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
         await startScan(handle) // root handle saved but entries missing (e.g. failed save): re-scan
         return
       }
+      set({ status: 'restoring', rootHandle: handle, skippedFolders: 0, restoringCount: cached.length })
       worker.postMessage({ type: 'restore', entries: cached })
-      set({ status: 'ready', rootHandle: handle, skippedFolders: 0 })
-      postQuery(get().filters)
     }
 
     async function startScan(handle: FileSystemDirectoryHandle) {
@@ -126,6 +129,7 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
 
     return {
       status: 'empty',
+      restoringCount: 0,
       rootHandle: undefined,
       progress: { scanned: 0, skipped: 0 },
       skippedFolders: 0,

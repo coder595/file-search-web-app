@@ -247,4 +247,16 @@ describe('ScanController.restore', () => {
       expect(posted).toEqual([{ type: 'error', message: expect.any(String) as string }])
     })
   })
+
+  it('restore() posts restore-complete with the count after indexing [D2]', () => {
+    const posted: { type: string; count?: number }[] = []
+    const controller = new ScanController((msg) => posted.push(msg))
+    const entry = (n: string) => ({
+      id: n, name: n, path: n, extension: 'txt', kind: 'file' as const, size: 1, lastModified: 1,
+    })
+    controller.restore([entry('a.txt'), entry('b.txt')])
+    expect(posted).toEqual([{ type: 'restore-complete', count: 2 }])
+    controller.query({ query: 'a', sort: 'name' })
+    expect(posted.at(-1)?.type).toBe('query-result')
+  })
 })

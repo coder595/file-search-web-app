@@ -7,6 +7,7 @@ export function FolderPicker() {
   const ignoredFolders = useFileSearchStore((s) => s.ignoredFolders)
   const selectFolder = useFileSearchStore((s) => s.selectFolder)
   const resumeAccess = useFileSearchStore((s) => s.resumeAccess)
+  const restoringCount = useFileSearchStore((s) => s.restoringCount)
   const error = useFileSearchStore((s) => s.error)
   const retry = useFileSearchStore((s) => s.retry)
   const notice = useFileSearchStore((s) => s.notice)
@@ -40,6 +41,12 @@ export function FolderPicker() {
       {status === 'scanning' && (
         <p className="text-sm text-gray-600 dark:text-gray-300">
           Scanned {progress.scanned.toLocaleString()} files…
+        </p>
+      )}
+
+      {status === 'restoring' && (
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          Restoring {restoringCount.toLocaleString()} cached entries…
         </p>
       )}
 

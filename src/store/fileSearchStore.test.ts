@@ -36,6 +36,7 @@ describe('createFileSearchStore', () => {
     })
     const store = createFileSearchStore(deps)
     await store.getState().init()
+    worker.emit({ type: 'restore-complete', count: cached.length })
 
     expect(store.getState().status).toBe('ready')
     expect(worker.posted).toContainEqual({ type: 'restore', entries: cached })
@@ -67,6 +68,7 @@ describe('createFileSearchStore', () => {
     const store = createFileSearchStore(deps)
     await store.getState().init()
     await store.getState().resumeAccess()
+    worker.emit({ type: 'restore-complete', count: 0 })
 
     expect(requestPermission).toHaveBeenCalledWith(handle)
     expect(store.getState().status).toBe('ready')
@@ -399,6 +401,28 @@ describe('createFileSearchStore', () => {
       await store.getState().init()
       await expect(store.getState().resumeAccess()).resolves.toBeUndefined()
       expect(store.getState().status).toBe('needs-permission')
+    })
+  })
+
+  describe('restoring [B3b/D2]', () => {
+    it('stays restoring (no query posted) until restore-complete, then ready and queries', async () => {
+      const handle = {} as FileSystemDirectoryHandle
+      const cached: IndexEntry[] = [
+        { id: '1', name: 'a.pdf', path: 'a.pdf', extension: 'pdf', kind: 'file', size: 1, lastModified: 1 },
+      ]
+      const { worker, deps } = makeDeps({
+        loadRootHandle: vi.fn().mockResolvedValue(handle),
+        loadEntries: vi.fn().mockResolvedValue(cached),
+      })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+
+      expect(store.getState()).toMatchObject({ status: 'restoring', restoringCount: 1, rootHandle: handle })
+      expect(worker.posted.some((m) => m.type === 'query')).toBe(false)
+
+      worker.emit({ type: 'restore-complete', count: 1 })
+      expect(store.getState().status).toBe('ready')
+      expect(worker.posted.some((m) => m.type === 'query')).toBe(true)
     })
   })
 })

@@ -53,6 +53,8 @@ describe('FolderPicker', () => {
         <FolderPicker />
       </FileSearchStoreProvider>,
     )
+    await screen.findByText(/restoring/i)
+    act(() => worker.emit({ type: 'restore-complete', count: 0 }))
     const refreshButton = await screen.findByRole('button', { name: /refresh/i })
     worker.posted.length = 0
     await userEvent.click(refreshButton)
@@ -120,6 +122,8 @@ describe('FolderPicker', () => {
         <FolderPicker />
       </FileSearchStoreProvider>,
     )
+    await screen.findByText(/restoring/i)
+    act(() => worker.emit({ type: 'restore-complete', count: 0 }))
     await screen.findByRole('button', { name: /refresh/i })
     act(() => worker.emit({ type: 'error', message: 'Folder vanished' }))
 
@@ -129,5 +133,21 @@ describe('FolderPicker', () => {
     await waitFor(() =>
       expect(latestWorker().posted).toContainEqual(expect.objectContaining({ type: 'scan', root: handle })),
     )
+  })
+
+  it('shows restoring progress text with the cached entry count', async () => {
+    const entries = Array.from({ length: 1234 }, (_, n) => ({
+      id: String(n), name: `f${n}`, path: `f${n}`, extension: '', kind: 'file' as const, size: 1, lastModified: 1,
+    }))
+    const { deps } = makeFakeDeps({
+      loadRootHandle: async () => ({}) as FileSystemDirectoryHandle,
+      loadEntries: async () => entries,
+    })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    expect(await screen.findByText(/Restoring 1,234 cached entries…/)).toBeInTheDocument()
   })
 })
