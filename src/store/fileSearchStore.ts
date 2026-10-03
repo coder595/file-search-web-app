@@ -80,14 +80,29 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
 
   const store = createStore<FileSearchState>((set, get) => {
-    function postQuery(filters: QueryFilters) {
-      worker.postMessage({ type: 'query', filters })
+    // Back-pressure: one query in flight; extra requests collapse into one follow-up with the latest filters.
+    let queryInFlight = false
+    let queryDirty = false
+    function postQuery() {
+      if (queryInFlight) {
+        queryDirty = true
+        return
+      }
+      queryInFlight = true
+      worker.postMessage({ type: 'query', filters: get().filters })
+    }
+    function resetQueries() {
+      queryInFlight = false
+      queryDirty = false
     }
 
     function attachHandlers(w: Worker) {
       w.onmessage = handleMessage
       // Backstop for script-load failures / crashes (e.g. a CSP block); NOT the scan-error path.
-      w.onerror = () => set({ status: 'error', error: 'The search worker stopped unexpectedly.' })
+      w.onerror = () => {
+        resetQueries()
+        set({ status: 'error', error: 'The search worker stopped unexpectedly.' })
+      }
     }
 
     function handleMessage(event: MessageEvent<WorkerOutMessage>) {
@@ -96,7 +111,7 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
       if (msg.type === 'progress') {
         if (status !== 'scanning') return
         set({ progress: { scanned: msg.scanned, skipped: msg.skipped } })
-        postQuery(get().filters)
+        postQuery()
       } else if (msg.type === 'scan-complete') {
         if (status !== 'scanning') return
         set({
@@ -109,14 +124,20 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
           await deps.clearEntries().catch((clearErr: unknown) => console.error('Failed to clear cached entries', clearErr))
           set({ notice: saveFailureNotice(err) })
         })
-        postQuery(get().filters)
+        postQuery()
       } else if (msg.type === 'query-result') {
         set({ results: msg.entries })
+        queryInFlight = false
+        if (queryDirty) {
+          queryDirty = false
+          postQuery()
+        }
       } else if (msg.type === 'restore-complete') {
         if (status !== 'restoring') return
         set({ status: 'ready' })
-        postQuery(get().filters)
+        postQuery()
       } else if (msg.type === 'error') {
+        resetQueries()
         set({ status: 'error', error: msg.message })
       }
     }
@@ -227,6 +248,7 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
         worker.onmessage = null
         worker.onerror = null
         worker.terminate()
+        resetQueries()
         worker = deps.createWorker()
         attachHandlers(worker)
         set({ error: undefined })
@@ -247,7 +269,7 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
         const filters = { ...get().filters, ...partial }
         set({ filters })
         if (debounceTimer) clearTimeout(debounceTimer)
-        debounceTimer = setTimeout(() => postQuery(filters), DEBOUNCE_MS)
+        debounceTimer = setTimeout(() => postQuery(), DEBOUNCE_MS)
       },
 
       setIgnorePatterns(patterns) {

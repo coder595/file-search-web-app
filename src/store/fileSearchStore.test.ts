@@ -158,6 +158,71 @@ describe('createFileSearchStore', () => {
     expect(store.getState().results).toEqual(entries)
   })
 
+  describe('query coalescing [E2]', () => {
+    const handle = {} as FileSystemDirectoryHandle
+    const queries = (w: { posted: { type: string }[] }) => w.posted.filter((m) => m.type === 'query')
+
+    it('keeps one query in flight; the next reply triggers one more with the latest filters', async () => {
+      const { worker, deps } = makeDeps({ showDirectoryPicker: vi.fn().mockResolvedValue(handle) })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await store.getState().selectFolder()
+
+      for (let i = 1; i <= 5; i++) worker.emit({ type: 'progress', scanned: i, skipped: 0 })
+      expect(queries(worker)).toHaveLength(1)
+
+      store.getState().setFilters({ query: 'latest' })
+      await vi.advanceTimersByTimeAsync(130)
+      expect(queries(worker)).toHaveLength(1) // still in flight
+
+      worker.emit({ type: 'query-result', entries: [] })
+      expect(queries(worker)).toHaveLength(2)
+      expect(queries(worker)[1]).toMatchObject({ filters: expect.objectContaining({ query: 'latest' }) })
+
+      worker.emit({ type: 'query-result', entries: [] })
+      expect(queries(worker)).toHaveLength(2) // nothing dirty, nothing more
+    })
+
+    it('a worker error resets the in-flight flag so the next query posts immediately', async () => {
+      const { worker, deps } = makeDeps({ showDirectoryPicker: vi.fn().mockResolvedValue(handle) })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await store.getState().selectFolder()
+      worker.emit({ type: 'progress', scanned: 1, skipped: 0 })
+      expect(queries(worker)).toHaveLength(1)
+
+      worker.emit({ type: 'error', message: 'boom' })
+      store.getState().setFilters({ query: 'x' })
+      await vi.advanceTimersByTimeAsync(130)
+
+      expect(queries(worker)).toHaveLength(2)
+    })
+
+    it('retry() resets the flags so the new worker gets queries', async () => {
+      const { worker, latestWorker, deps } = makeDeps({ loadRootHandle: vi.fn().mockResolvedValue(handle) })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await store.getState().retry()
+      worker.emit({ type: 'progress', scanned: 1, skipped: 0 }) // old worker ignored (handlers detached)
+      const fresh = latestWorker()
+      fresh.emit({ type: 'progress', scanned: 1, skipped: 0 })
+      expect(queries(fresh)).toHaveLength(1)
+    })
+
+    it('a query-result during scanning still updates results', async () => {
+      const { worker, deps } = makeDeps({ showDirectoryPicker: vi.fn().mockResolvedValue(handle) })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      await store.getState().selectFolder()
+      worker.emit({ type: 'progress', scanned: 1, skipped: 0 })
+      const entries: IndexEntry[] = [
+        { id: '1', name: 'a.pdf', path: 'a.pdf', extension: 'pdf', kind: 'file', size: 1, lastModified: 1 },
+      ]
+      worker.emit({ type: 'query-result', entries })
+      expect(store.getState()).toMatchObject({ status: 'scanning', results: entries })
+    })
+  })
+
   it('setFilters debounces the query message by ~130ms', async () => {
     const { worker, deps } = makeDeps()
     const store = createFileSearchStore(deps)
