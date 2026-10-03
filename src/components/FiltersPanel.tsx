@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type KeyboardEvent } from 'react'
+import { useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
 import { useFileSearchStore } from '../store/useFileSearchStore'
 import type { QueryFilters } from '../lib/types'
 
@@ -11,6 +11,7 @@ export function FiltersPanel() {
   const ignorePatterns = useFileSearchStore((s) => s.ignorePatterns)
   const setIgnorePatterns = useFileSearchStore((s) => s.setIgnorePatterns)
   const folderLoaded = useFileSearchStore((s) => s.status === 'ready')
+  const patternInputRef = useRef<HTMLInputElement>(null)
   const [newPattern, setNewPattern] = useState('')
 
   function addPattern(e: KeyboardEvent<HTMLInputElement>) {
@@ -23,7 +24,7 @@ export function FiltersPanel() {
   }
 
   function removePattern(pattern: string) {
-    document.getElementById('ignore-pattern-input')?.focus() // the clicked chip is about to unmount
+    patternInputRef.current?.focus() // the clicked chip is about to unmount
     setIgnorePatterns(ignorePatterns.filter((p) => p !== pattern))
   }
 
@@ -132,6 +133,7 @@ export function FiltersPanel() {
             </span>
           ))}
           <input
+            ref={patternInputRef}
             id="ignore-pattern-input"
             aria-label="Add ignore pattern"
             className={inputClass}

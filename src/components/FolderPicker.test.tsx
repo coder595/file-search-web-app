@@ -132,7 +132,7 @@ describe('FolderPicker', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Folder vanished')
     // Regression: FINDING-007 — the alert showed only raw browser/worker text
     // Found by /design-review on 2026-10-03
-    expect(screen.getByRole('alert')).toHaveTextContent(/^Couldn't read that folder\./)
+    expect(screen.getByRole('alert')).toHaveTextContent(/^The search stopped\./)
     await userEvent.click(screen.getByRole('button', { name: /retry/i }))
     expect(document.activeElement).not.toBe(document.body)
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
@@ -207,5 +207,21 @@ describe('FolderPicker', () => {
     await userEvent.click(await screen.findByRole('button', { name: /select folder/i }))
     await screen.findByText(/scanned/i)
     expect(document.activeElement).not.toBe(document.body)
+  })
+
+  it('returns focus to Resume access when permission is denied and status is unchanged', async () => {
+    const { deps } = makeFakeDeps({
+      loadRootHandle: async () => ({}) as FileSystemDirectoryHandle,
+      checkPermission: async () => 'prompt',
+      requestPermission: async () => 'denied',
+    })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    const button = await screen.findByRole('button', { name: /resume access/i })
+    await userEvent.click(button)
+    await waitFor(() => expect(button).toHaveFocus())
   })
 })

@@ -19,12 +19,17 @@ export function FolderPicker() {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const selectRef = useRef<HTMLButtonElement>(null)
   const store = useContext(FileSearchStoreContext)
-  const keepFocus = (action: () => Promise<void>) => () => {
+  const keepFocus = (action: () => Promise<void>) => (e: React.MouseEvent<HTMLButtonElement>) => {
+    const clicked = e.currentTarget
     wrapperRef.current?.focus()
-    void action().then(() => {
-      // Picker cancelled: status unchanged, so give focus back to the button.
-      if (store?.getState().status === 'empty') selectRef.current?.focus()
-    })
+    action()
+      .catch(console.error)
+      .finally(() => {
+        // Action left the button in place (cancelled / denied): restore focus to it.
+        // Button gone but still 'empty' (re-rendered): Select Folder. Else leave on wrapper.
+        if (clicked.isConnected) clicked.focus()
+        else if (store?.getState().status === 'empty') selectRef.current?.focus()
+      })
   }
 
   // Screen readers hear transitions only ("Scanning…", "Scan complete: N files."),
@@ -94,7 +99,7 @@ export function FolderPicker() {
       {status === 'error' && (
         <>
           <p role="alert" className="text-sm text-red-700 dark:text-red-400">
-            Couldn&apos;t read that folder.{' '}
+            The search stopped.{' '}
             <span className="text-xs text-gray-600 dark:text-gray-400">{error}</span>
           </p>
           <button

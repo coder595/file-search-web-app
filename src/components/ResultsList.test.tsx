@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FileSearchStoreProvider } from '../store/FileSearchStoreProvider'
@@ -28,7 +28,7 @@ function renderList(results: IndexEntry[]) {
       </div>
     </FileSearchStoreProvider>,
   )
-  worker.emit({ type: 'query-result', entries: results })
+  act(() => worker.emit({ type: 'query-result', entries: results }))
   return { worker }
 }
 
@@ -70,8 +70,8 @@ describe('ResultsList', () => {
       </FileSearchStoreProvider>,
     )
     await waitFor(() => expect(worker.posted.some((m) => m.type === 'restore')).toBe(true))
-    worker.emit({ type: 'restore-complete', count: 0 })
-    worker.emit({ type: 'query-result', entries: [] })
+    act(() => worker.emit({ type: 'restore-complete', count: 0 }))
+    act(() => worker.emit({ type: 'query-result', entries: [] }))
     expect(await screen.findByText('No results.')).toBeInTheDocument()
   })
 
@@ -190,10 +190,12 @@ describe('ResultsList', () => {
       await userEvent.keyboard('{ArrowDown}{ArrowDown}')
       expect(screen.getAllByRole('option')[2]).toHaveAttribute('aria-selected', 'true')
 
-      worker.emit({
-        type: 'query-result',
-        entries: [entry({ id: '9', name: 'z.pdf', path: 'z.pdf' })],
-      })
+      act(() =>
+        worker.emit({
+          type: 'query-result',
+          entries: [entry({ id: '9', name: 'z.pdf', path: 'z.pdf' })],
+        }),
+      )
 
       await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(1))
       expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'true')

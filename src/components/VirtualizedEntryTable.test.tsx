@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { IndexEntry } from '../lib/types'
 import { VirtualizedEntryTable } from './VirtualizedEntryTable'
 
@@ -16,6 +16,8 @@ const entry = (name: string): IndexEntry => ({
 const entries = [entry('a b.txt'), entry('c.txt'), entry('d.txt')]
 
 describe('VirtualizedEntryTable a11y', () => {
+  afterEach(() => vi.useRealTimers())
+
   it('names the listbox and describes the Enter-to-copy hint', () => {
     render(<VirtualizedEntryTable entries={entries} />)
     const listbox = screen.getByRole('listbox', { name: 'Search results' })
@@ -52,7 +54,6 @@ describe('VirtualizedEntryTable a11y', () => {
     expect(status).toHaveTextContent(/copied/i)
     act(() => void vi.advanceTimersByTime(4500))
     expect(status).toBeEmptyDOMElement()
-    vi.useRealTimers()
   })
 
   it('hides decorative emoji from assistive tech', () => {
@@ -65,11 +66,17 @@ describe('VirtualizedEntryTable a11y', () => {
     render(<VirtualizedEntryTable entries={many} />)
     const listbox = screen.getByRole('listbox')
     listbox.focus()
-    await userEvent.keyboard('{End}')
-    // jsdom has no layout: the virtualizer renders a small window around the scroll offset
-    const ids = screen.getAllByRole('option').map((o) => o.id)
-    const active = listbox.getAttribute('aria-activedescendant')
-    if (active) expect(ids).toContain(active)
-    expect(ids.length).toBeLessThan(500)
+    await userEvent.keyboard('{End}') // selects index 499; jsdom has no layout so it is never rendered
+    expect(screen.getAllByRole('option').length).toBeLessThan(500)
+    expect(screen.queryByRole('option', { name: /f499\.txt/ })).not.toBeInTheDocument()
+    expect(listbox).not.toHaveAttribute('aria-activedescendant')
+  })
+
+  it('points aria-activedescendant at an existing option when the selected row is rendered', () => {
+    const many = Array.from({ length: 500 }, (_, i) => entry(`f${i}.txt`))
+    render(<VirtualizedEntryTable entries={many} />)
+    const active = screen.getByRole('listbox').getAttribute('aria-activedescendant')
+    expect(active).toBeTruthy()
+    expect(document.getElementById(active!)).toBeInTheDocument()
   })
 })
