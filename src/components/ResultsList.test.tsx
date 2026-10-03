@@ -33,6 +33,20 @@ function renderList(results: IndexEntry[]) {
 }
 
 describe('ResultsList', () => {
+  // Regression: FINDING-006 — "No results." showed before any folder was chosen
+  // Found by /design-review on 2026-10-03
+  it('invites the user to pick a folder (not "No results.") before any folder is loaded', () => {
+    const { deps } = makeFakeDeps()
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <ResultsList />
+      </FileSearchStoreProvider>,
+    )
+    expect(screen.getByText(/select a folder to search its files/i)).toBeInTheDocument()
+    expect(screen.getByText(/nothing leaves your computer/i)).toBeInTheDocument()
+    expect(screen.queryByText('No results.')).not.toBeInTheDocument()
+  })
+
   let writeText: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
