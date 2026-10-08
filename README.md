@@ -69,8 +69,8 @@ any other re-scan. Your list is remembered across reloads.
 - **Scan or folder errors:** if a folder disappears or can't be read, the app
   shows "The search stopped." with the reason. **Retry** rescans the same
   folder; **Choose a different folder** picks a new one.
-- **Browser storage full:** if the index can't be saved for next time, a notice
-  says so. Search still works for this session; the folder is re-scanned on
+- **Index not saved:** if the index can't be saved for next time (browser
+  storage full, or another write error), a notice says so. Search still works for this session; the folder is re-scanned on
   your next visit instead of restored.
 
 ## Setup
@@ -91,6 +91,7 @@ npm run dev       # start the dev server at http://localhost:5173
 | `npm test` | Run the Vitest unit/component suite once |
 | `npm run test:watch` | Run Vitest in watch mode |
 | `npm run test:coverage` | Run tests with a coverage report (80% threshold, per `plan.md` Section 17) |
+| (CI) | Every pull request runs lint → coverage → build → E2E in GitHub Actions (`.github/workflows/ci.yml`) |
 | `npm run e2e` | Run the Playwright E2E suite (Chromium, Firefox/WebKit fallback, and a CSP check against a production build) |
 
 ## Architecture
@@ -114,7 +115,9 @@ Browser Tab
 - `src/test/` — shared test fixtures (fake worker/dependencies, jsdom setup)
 
 No file content or path is ever sent over the network — everything above runs
-entirely client-side.The production build also ships a Content-Security-Policy with
+entirely client-side.
+
+The production build also ships a Content-Security-Policy with
 `connect-src 'none'`, so the page itself cannot make network requests, and a
 CI test checks that this policy is enforced.
 

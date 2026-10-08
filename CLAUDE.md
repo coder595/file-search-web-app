@@ -17,6 +17,7 @@ npm run test:coverage                    # vitest run --coverage (80% threshold,
 
 npm run e2e                              # playwright test (starts its own dev server)
 npx playwright test tests/e2e/foo.spec.ts -g "test name"   # single E2E test
+# CI (.github/workflows/ci.yml, PRs + pushes to master, Node 24): npm ci → lint → test:coverage → build → playwright install chromium firefox webkit → e2e
 
 ./scripts/package-portable.sh            # build + zip a no-npm-install portable release
 ```
