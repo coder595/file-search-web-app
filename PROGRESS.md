@@ -77,7 +77,7 @@
 - [x] `ecc:security-reviewer` — no Critical/High/Medium; CI actions SHA-pinned as a result.
 - [x] `npm audit` clean (no runtime dependency added; devDependency patch/minor bumps only).
 - [x] `/document-release` — README (troubleshooting, CSP note, scripts), CLAUDE.md (Playwright projects, worker contract, statuses), TODOS updated.
-- [ ] `/ship` — pending at time of writing (VERSION/CHANGELOG + PR).
+- [x] `/ship` — v0.1.0.0: first VERSION + CHANGELOG.md, branch pushed, PR opened against `master` (squash-merge recommended; e551d4c/a7fec01 are partial commits on their own).
 - [ ] F4 public deploy — not started; needs owner approval.
 
 ## Deviations from plan.md
