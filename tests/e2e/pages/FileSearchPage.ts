@@ -20,7 +20,7 @@ export class FileSearchPage {
     this.extensionInput = page.getByLabel('Extension')
     this.listbox = page.getByRole('listbox')
     this.rows = this.listbox.getByRole('option')
-    this.toast = page.getByRole('status')
+    this.toast = page.getByRole('status').filter({ hasText: /cop/i })
   }
 
   async goto() {

@@ -1,15 +1,17 @@
-import { useState, type ChangeEvent, type KeyboardEvent } from 'react'
-import { useFileSearchStore } from '../store/FileSearchStoreProvider'
+import { useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
+import { useFileSearchStore } from '../store/useFileSearchStore'
 import type { QueryFilters } from '../lib/types'
 
 const labelClass = 'flex flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-400'
-const inputClass = 'rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100'
+const inputClass = 'rounded border border-gray-500 px-2 py-1 text-sm dark:bg-gray-800 dark:text-gray-100'
 
 export function FiltersPanel() {
   const filters = useFileSearchStore((s) => s.filters)
   const setFilters = useFileSearchStore((s) => s.setFilters)
   const ignorePatterns = useFileSearchStore((s) => s.ignorePatterns)
   const setIgnorePatterns = useFileSearchStore((s) => s.setIgnorePatterns)
+  const folderLoaded = useFileSearchStore((s) => s.status === 'ready')
+  const patternInputRef = useRef<HTMLInputElement>(null)
   const [newPattern, setNewPattern] = useState('')
 
   function addPattern(e: KeyboardEvent<HTMLInputElement>) {
@@ -22,6 +24,7 @@ export function FiltersPanel() {
   }
 
   function removePattern(pattern: string) {
+    patternInputRef.current?.focus() // the clicked chip is about to unmount
     setIgnorePatterns(ignorePatterns.filter((p) => p !== pattern))
   }
 
@@ -116,20 +119,21 @@ export function FiltersPanel() {
           {ignorePatterns.map((pattern) => (
             <span
               key={pattern}
-              className="flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200"
+              className="flex items-center gap-0.5 rounded bg-gray-100 py-0.5 pl-2 pr-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200"
             >
               {pattern}
               <button
                 type="button"
                 aria-label={`Remove ${pattern}`}
                 onClick={() => removePattern(pattern)}
-                className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-100"
+                className="inline-flex size-6 items-center justify-center rounded text-gray-600 hover:bg-gray-200 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100"
               >
-                ×
+                <span aria-hidden="true">×</span>
               </button>
             </span>
           ))}
           <input
+            ref={patternInputRef}
             id="ignore-pattern-input"
             aria-label="Add ignore pattern"
             className={inputClass}
@@ -139,7 +143,9 @@ export function FiltersPanel() {
             placeholder="folder name…"
           />
         </div>
-        <p className="text-xs text-gray-400 dark:text-gray-500">Click Refresh to apply</p>
+        <p className="text-xs text-gray-600 dark:text-gray-400">
+          {folderLoaded ? 'Click Refresh to apply' : 'Applies to the next scan'}
+        </p>
       </div>
     </div>
   )

@@ -1,4 +1,5 @@
-import { useFileSearchStore } from '../store/FileSearchStoreProvider'
+import { useContext, useRef, useState } from 'react'
+import { FileSearchStoreContext, useFileSearchStore } from '../store/useFileSearchStore'
 
 export function FolderPicker() {
   const status = useFileSearchStore((s) => s.status)
@@ -7,18 +8,66 @@ export function FolderPicker() {
   const ignoredFolders = useFileSearchStore((s) => s.ignoredFolders)
   const selectFolder = useFileSearchStore((s) => s.selectFolder)
   const resumeAccess = useFileSearchStore((s) => s.resumeAccess)
+  const restoringCount = useFileSearchStore((s) => s.restoringCount)
+  const error = useFileSearchStore((s) => s.error)
+  const retry = useFileSearchStore((s) => s.retry)
+  const notice = useFileSearchStore((s) => s.notice)
   const refresh = useFileSearchStore((s) => s.refresh)
+  const hasFolder = useFileSearchStore((s) => s.rootHandle !== undefined)
+
+  // The clicked button unmounts when status changes; park focus on the wrapper
+  // (before awaiting) so it doesn't fall back to <body> (WCAG 2.4.3).
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const selectRef = useRef<HTMLButtonElement>(null)
+  const store = useContext(FileSearchStoreContext)
+  const keepFocus = (action: () => Promise<void>) => (e: React.MouseEvent<HTMLButtonElement>) => {
+    const clicked = e.currentTarget
+    wrapperRef.current?.focus()
+    action()
+      .catch(console.error)
+      .finally(() => {
+        // Action left the button in place (cancelled / denied): restore focus to it.
+        // Button gone but still 'empty' (re-rendered): Select Folder. Else leave on wrapper.
+        if (clicked.isConnected) clicked.focus()
+        else if (store?.getState().status === 'empty') selectRef.current?.focus()
+      })
+  }
+
+  // Screen readers hear transitions only ("Scanning…", "Scan complete: N files."),
+  // never per-batch progress ticks.
+  const [announce, setAnnounce] = useState('')
+  const [prevStatus, setPrevStatus] = useState(status)
+  if (prevStatus !== status) {
+    setPrevStatus(status)
+    setAnnounce(
+      status === 'scanning'
+        ? 'Scanning…'
+        : status === 'restoring'
+          ? 'Restoring…'
+          : status === 'ready' && prevStatus === 'scanning'
+            ? `Scan complete: ${progress.scanned.toLocaleString()} files.`
+            : '',
+    )
+  }
+
+  const progressText =
+    status === 'scanning'
+      ? `Scanned ${progress.scanned.toLocaleString()} files…`
+      : status === 'restoring'
+        ? `Restoring ${restoringCount.toLocaleString()} cached entries…`
+        : ''
 
   const skippedNote = skippedFolders > 0 ? ` — ${skippedFolders} folders skipped (no permission)` : ''
   const ignoredNote = ignoredFolders > 0 ? ` — ${ignoredFolders} folders ignored` : ''
 
   return (
-    <div className="flex items-center gap-3">
+    <div ref={wrapperRef} tabIndex={-1} className="flex flex-wrap items-center gap-x-3 gap-y-1 outline-none">
       {status === 'empty' && (
         <button
+          ref={selectRef}
           type="button"
-          onClick={() => void selectFolder()}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+          onClick={keepFocus(selectFolder)}
+          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
           Select Folder
         </button>
@@ -27,25 +76,19 @@ export function FolderPicker() {
       {status === 'needs-permission' && (
         <button
           type="button"
-          onClick={() => void resumeAccess()}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+          onClick={keepFocus(resumeAccess)}
+          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
           Resume access to folder
         </button>
-      )}
-
-      {status === 'scanning' && (
-        <p className="text-sm text-gray-600 dark:text-gray-300">
-          Scanned {progress.scanned.toLocaleString()} files…
-        </p>
       )}
 
       {status === 'ready' && (
         <>
           <button
             type="button"
-            onClick={() => void refresh()}
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+            onClick={keepFocus(refresh)}
+            className="rounded border border-gray-500 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             Refresh
           </button>
@@ -54,6 +97,38 @@ export function FolderPicker() {
           </p>
         </>
       )}
+      {status === 'error' && (
+        <>
+          <p role="alert" className="text-sm text-red-700 dark:text-red-400">
+            The search stopped.{' '}
+            <span className="text-xs text-gray-600 dark:text-gray-400">{error}</span>
+          </p>
+          <button
+            type="button"
+            onClick={keepFocus(retry)}
+            className="rounded border border-gray-500 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            Retry
+          </button>
+          {hasFolder && (
+            <button
+              type="button"
+              onClick={keepFocus(selectFolder)}
+              className="rounded border border-gray-500 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              Choose a different folder
+            </button>
+          )}
+        </>
+      )}
+
+      {progressText && <p className="text-sm text-gray-600 dark:text-gray-300">{progressText}</p>}
+      <p role="status" aria-atomic="true" className="sr-only">
+        {announce}
+      </p>
+      <p role="status" className="basis-full text-sm text-amber-700 dark:text-amber-400">
+        {notice}
+      </p>
     </div>
   )
 }

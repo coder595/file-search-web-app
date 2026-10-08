@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IndexEntry } from './types'
 
@@ -15,7 +16,7 @@ vi.mock('idb-keyval', () => ({
   }),
 }))
 
-import { clearCache, loadEntries, loadRootHandle, saveEntries, saveRootHandle } from './db'
+import { clearCache, clearEntries, loadEntries, loadRootHandle, saveEntries, saveRootHandle } from './db'
 
 describe('db (IndexedDB persistence layer)', () => {
   beforeEach(() => {
@@ -51,5 +52,14 @@ describe('db (IndexedDB persistence layer)', () => {
     await clearCache()
     await expect(loadRootHandle()).resolves.toBeUndefined()
     await expect(loadEntries()).resolves.toBeUndefined()
+  })
+
+  it('clearEntries removes cached entries but keeps the root handle', async () => {
+    const handle = { kind: 'directory', name: 'root' } as unknown as FileSystemDirectoryHandle
+    await saveRootHandle(handle)
+    await saveEntries([])
+    await clearEntries()
+    await expect(loadEntries()).resolves.toBeUndefined()
+    await expect(loadRootHandle()).resolves.toBe(handle)
   })
 })

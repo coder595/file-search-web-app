@@ -6,11 +6,19 @@ import { sortEntries } from './sort'
 import { walkDirectory } from './walk'
 
 export type WorkerOutMessage =
-  | { type: 'progress'; scanned: number; skipped: number }
-  | { type: 'scan-complete'; scanned: number; skipped: number; ignored: number; entries: IndexEntry[] }
+  | { type: 'progress'; scanId: number; scanned: number; skipped: number }
+  | { type: 'scan-complete'; scanId: number; scanned: number; skipped: number; ignored: number; entries: IndexEntry[] }
   | { type: 'query-result'; entries: IndexEntry[] }
+  | { type: 'restore-complete'; count: number }
+  | { type: 'error'; message: string; scanId?: number }
+  | { type: 'query-error'; message: string }
 
 const PROGRESS_BATCH_SIZE = 200
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || err.name
+  return String(err)
+}
 
 /**
  * Owns the in-worker FlexSearch index and the directory walk. A single
@@ -28,36 +36,40 @@ export class ScanController {
     this.post = post
   }
 
-  async scan(root: FileSystemDirectoryHandle, ignoreNames?: Set<string>): Promise<void> {
+  async scan(root: FileSystemDirectoryHandle, ignoreNames?: Set<string>, scanId = 0): Promise<void> {
     const myGeneration = ++this.generation
     this.searchIndex.clear()
 
-    let scanned = 0
-    let skipped = 0
-    let ignored = 0
-    let sinceYield = 0
+    try {
+      let scanned = 0
+      let skipped = 0
+      let ignored = 0
+      let sinceYield = 0
 
-    for await (const event of walkDirectory(root, '', ignoreNames)) {
-      if (myGeneration !== this.generation) return // superseded by a newer scan
+      for await (const event of walkDirectory(root, '', ignoreNames)) {
+        if (myGeneration !== this.generation) return // superseded by a newer scan
 
-      if (event.type === 'entry') {
-        this.searchIndex.add(event.entry)
-        scanned++
-      } else if (event.type === 'skipped') {
-        skipped++
-      } else {
-        ignored++
+        if (event.type === 'entry') {
+          this.searchIndex.add(event.entry)
+          scanned++
+        } else if (event.type === 'skipped') {
+          skipped++
+        } else {
+          ignored++
+        }
+
+        if (++sinceYield >= PROGRESS_BATCH_SIZE) {
+          sinceYield = 0
+          this.post({ type: 'progress', scanId, scanned, skipped })
+          await Promise.resolve()
+        }
       }
 
-      if (++sinceYield >= PROGRESS_BATCH_SIZE) {
-        sinceYield = 0
-        this.post({ type: 'progress', scanned, skipped })
-        await Promise.resolve()
-      }
+      if (myGeneration !== this.generation) return
+      this.post({ type: 'scan-complete', scanId, scanned, skipped, ignored, entries: this.searchIndex.values() })
+    } catch (err) {
+      if (myGeneration === this.generation) this.post({ type: 'error', message: errorMessage(err), scanId })
     }
-
-    if (myGeneration !== this.generation) return
-    this.post({ type: 'scan-complete', scanned, skipped, ignored, entries: this.searchIndex.values() })
   }
 
   /**
@@ -67,17 +79,26 @@ export class ScanController {
    */
   restore(entries: IndexEntry[]): void {
     this.generation++
-    this.searchIndex.clear()
-    for (const entry of entries) this.searchIndex.add(entry)
+    try {
+      this.searchIndex.clear()
+      for (const entry of entries) this.searchIndex.add(entry)
+      this.post({ type: 'restore-complete', count: entries.length })
+    } catch (err) {
+      this.post({ type: 'error', message: errorMessage(err) })
+    }
   }
 
   /** Search + filter + sort, all here so the UI never duplicates match logic. */
   query(filters: QueryFilters): void {
-    const parsed = parseQuery(filters.query)
-    const effective: QueryFilters = { ...filters, extension: filters.extension ?? parsed.extension }
-    const matched = this.searchIndex
-      .search(parsed.text, { fuzzy: filters.fuzzy })
-      .filter((entry) => matchesFilters(entry, effective))
-    this.post({ type: 'query-result', entries: sortEntries(matched, filters.sort) })
+    try {
+      const parsed = parseQuery(filters.query)
+      const effective: QueryFilters = { ...filters, extension: filters.extension ?? parsed.extension }
+      const matched = this.searchIndex
+        .search(parsed.text, { fuzzy: filters.fuzzy })
+        .filter((entry) => matchesFilters(entry, effective))
+      this.post({ type: 'query-result', entries: sortEntries(matched, filters.sort) })
+    } catch (err) {
+      this.post({ type: 'query-error', message: errorMessage(err) })
+    }
   }
 }

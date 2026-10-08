@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FileSearchStoreProvider } from '../store/FileSearchStoreProvider'
@@ -28,11 +28,25 @@ function renderList(results: IndexEntry[]) {
       </div>
     </FileSearchStoreProvider>,
   )
-  worker.emit({ type: 'query-result', entries: results })
+  act(() => worker.emit({ type: 'query-result', entries: results }))
   return { worker }
 }
 
 describe('ResultsList', () => {
+  // Regression: FINDING-006 — "No results." showed before any folder was chosen
+  // Found by /design-review on 2026-10-03
+  it('invites the user to pick a folder (not "No results.") before any folder is loaded', () => {
+    const { deps } = makeFakeDeps()
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <ResultsList />
+      </FileSearchStoreProvider>,
+    )
+    expect(screen.getByText(/select a folder to search its files/i)).toBeInTheDocument()
+    expect(screen.getByText(/nothing leaves your computer/i)).toBeInTheDocument()
+    expect(screen.queryByText('No results.')).not.toBeInTheDocument()
+  })
+
   let writeText: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
@@ -45,9 +59,20 @@ describe('ResultsList', () => {
     delete navigator.clipboard
   })
 
-  it('shows an empty state when there are no results', () => {
-    renderList([])
-    expect(screen.getByText(/no results/i)).toBeInTheDocument()
+  it('shows "No results." when a loaded folder matches nothing', async () => {
+    const { deps, worker } = makeFakeDeps({
+      loadRootHandle: vi.fn().mockResolvedValue({ name: 'root' } as FileSystemDirectoryHandle),
+      loadEntries: vi.fn().mockResolvedValue([]),
+    })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <ResultsList />
+      </FileSearchStoreProvider>,
+    )
+    await waitFor(() => expect(worker.posted.some((m) => m.type === 'restore')).toBe(true))
+    act(() => worker.emit({ type: 'restore-complete', count: 0 }))
+    act(() => worker.emit({ type: 'query-result', entries: [] }))
+    expect(await screen.findByText('No results.')).toBeInTheDocument()
   })
 
   it('renders a row with name, path, size, and modified date as plain text', async () => {
@@ -165,10 +190,12 @@ describe('ResultsList', () => {
       await userEvent.keyboard('{ArrowDown}{ArrowDown}')
       expect(screen.getAllByRole('option')[2]).toHaveAttribute('aria-selected', 'true')
 
-      worker.emit({
-        type: 'query-result',
-        entries: [entry({ id: '9', name: 'z.pdf', path: 'z.pdf' })],
-      })
+      act(() =>
+        worker.emit({
+          type: 'query-result',
+          entries: [entry({ id: '9', name: 'z.pdf', path: 'z.pdf' })],
+        }),
+      )
 
       await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(1))
       expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'true')

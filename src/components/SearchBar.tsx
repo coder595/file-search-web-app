@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useFocusShortcut } from '../lib/useFocusShortcut'
-import { useFileSearchStore } from '../store/FileSearchStoreProvider'
+import { useFileSearchStore } from '../store/useFileSearchStore'
 
 export function SearchBar() {
   const query = useFileSearchStore((s) => s.filters.query)
@@ -11,12 +11,12 @@ export function SearchBar() {
   return (
     <input
       ref={inputRef}
-      role="searchbox"
+      aria-label="Search files by name"
       type="search"
       value={query}
-      placeholder="Search files by name (ext:pdf or .pdf to filter by extension)"
+      placeholder="Search by name (try ext:pdf)"
       onChange={(e) => setFilters({ query: e.target.value })}
-      className="w-full rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400"
+      className="w-full rounded border border-gray-500 px-3 py-2 text-sm dark:bg-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
     />
   )
 }

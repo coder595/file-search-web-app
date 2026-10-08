@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { FileSearchStoreProvider } from '../store/FileSearchStoreProvider'
 import { makeFakeDeps } from '../test/fakeFileSearchDeps'
 import { FolderPicker } from './FolderPicker'
@@ -47,12 +47,14 @@ describe('FolderPicker', () => {
 
   it('shows a Refresh button once ready, and clicking it forces a re-scan', async () => {
     const handle = {} as FileSystemDirectoryHandle
-    const { deps, worker } = makeFakeDeps({ loadRootHandle: async () => handle })
+    const { deps, worker } = makeFakeDeps({ loadRootHandle: async () => handle, loadEntries: async () => [] })
     render(
       <FileSearchStoreProvider deps={deps}>
         <FolderPicker />
       </FileSearchStoreProvider>,
     )
+    await screen.findByText(/restoring \d/i)
+    act(() => worker.emit({ type: 'restore-complete', count: 0 }))
     const refreshButton = await screen.findByRole('button', { name: /refresh/i })
     worker.posted.length = 0
     await userEvent.click(refreshButton)
@@ -89,5 +91,170 @@ describe('FolderPicker', () => {
 
     expect(await screen.findByText(/3 folders ignored/i)).toBeInTheDocument()
     expect(screen.queryByText(/folders skipped/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the storage notice as a status message when set', async () => {
+    const handle = {} as FileSystemDirectoryHandle
+    const { deps } = makeFakeDeps({
+      showDirectoryPicker: async () => handle,
+      saveRootHandle: async () => {
+        throw Object.assign(new Error('full'), { name: 'QuotaExceededError' })
+      },
+    })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: /select folder/i }))
+
+    const notice = await screen.findByText(/browser storage is full/i)
+    expect(notice).toHaveAttribute('role', 'status')
+    expect(notice).not.toHaveClass('sr-only')
+  })
+
+  it('shows the error as an alert with a Retry button that calls retry()', async () => {
+    const handle = {} as FileSystemDirectoryHandle
+    const { deps, worker, latestWorker } = makeFakeDeps({
+      loadRootHandle: async () => handle,
+      loadEntries: async () => [],
+    })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    await screen.findByText(/restoring \d/i)
+    act(() => worker.emit({ type: 'restore-complete', count: 0 }))
+    await screen.findByRole('button', { name: /refresh/i })
+    act(() => worker.emit({ type: 'error', message: 'Folder vanished' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Folder vanished')
+    // Regression: FINDING-007 — the alert showed only raw browser/worker text
+    // Found by /design-review on 2026-10-03
+    expect(screen.getByRole('alert')).toHaveTextContent(/^The search stopped\./)
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }))
+    expect(document.activeElement).not.toBe(document.body)
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+
+    await waitFor(() =>
+      expect(latestWorker().posted).toContainEqual(expect.objectContaining({ type: 'scan', root: handle })),
+    )
+  })
+
+  it('error state with a folder set offers "Choose a different folder", which opens the picker', async () => {
+    const handle = {} as FileSystemDirectoryHandle
+    const showDirectoryPicker = vi.fn().mockRejectedValue(Object.assign(new Error('x'), { name: 'AbortError' }))
+    const { deps, worker } = makeFakeDeps({
+      loadRootHandle: async () => handle,
+      loadEntries: async () => [],
+      showDirectoryPicker,
+    })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    await screen.findByText(/restoring \d/i)
+    act(() => worker.emit({ type: 'error', message: 'Folder vanished' }))
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Choose a different folder' }))
+    expect(showDirectoryPicker).toHaveBeenCalledTimes(1)
+  })
+
+  it('error state without a folder does not offer "Choose a different folder"', async () => {
+    const showDirectoryPicker = vi.fn().mockRejectedValue(new Error('picker broke'))
+    const { deps } = makeFakeDeps({ showDirectoryPicker })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: /select folder/i }))
+    await screen.findByRole('alert')
+    expect(screen.queryByRole('button', { name: 'Choose a different folder' })).not.toBeInTheDocument()
+  })
+
+  it('shows restoring progress text with the cached entry count', async () => {
+    const entries = Array.from({ length: 1234 }, (_, n) => ({
+      id: String(n), name: `f${n}`, path: `f${n}`, extension: '', kind: 'file' as const, size: 1, lastModified: 1,
+    }))
+    const { deps } = makeFakeDeps({
+      loadRootHandle: async () => ({}) as FileSystemDirectoryHandle,
+      loadEntries: async () => entries,
+    })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    expect(await screen.findByText(/Restoring 1,234 cached entries…/)).toBeInTheDocument()
+  })
+
+  it('announces only transitions in a sr-only status region, never per-progress tick', async () => {
+    const { deps, worker } = makeFakeDeps({ showDirectoryPicker: async () => ({}) as FileSystemDirectoryHandle })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: /select folder/i }))
+    const live = screen.getAllByRole('status').find((el) => el.classList.contains('sr-only'))!
+    expect(live).toHaveTextContent('Scanning…')
+
+    act(() => worker.emit({ type: 'progress', scanned: 10, skipped: 0 }))
+    expect(await screen.findByText('Scanned 10 files…')).toBeInTheDocument()
+    expect(live).toHaveTextContent('Scanning…')
+    act(() => worker.emit({ type: 'progress', scanned: 20, skipped: 0 }))
+    expect(await screen.findByText('Scanned 20 files…')).toBeInTheDocument()
+    expect(live).toHaveTextContent('Scanning…')
+    expect(live).not.toContainElement(screen.getByText('Scanned 20 files…'))
+
+    act(() => worker.emit({ type: 'scan-complete', scanned: 1234, skipped: 0, ignored: 0, entries: [] }))
+    await waitFor(() => expect(live).toHaveTextContent('Scan complete: 1,234 files.'))
+  })
+
+  it('returns focus to Select Folder when the picker is cancelled', async () => {
+    const { deps } = makeFakeDeps({
+      showDirectoryPicker: async () => {
+        throw Object.assign(new Error('cancelled'), { name: 'AbortError' })
+      },
+    })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    const button = await screen.findByRole('button', { name: /select folder/i })
+    await userEvent.click(button)
+    await waitFor(() => expect(button).toHaveFocus())
+  })
+
+  it('keeps focus inside the picker after Select Folder unmounts', async () => {
+    const { deps } = makeFakeDeps({ showDirectoryPicker: async () => ({}) as FileSystemDirectoryHandle })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: /select folder/i }))
+    await screen.findByText(/scanned/i)
+    expect(document.activeElement).not.toBe(document.body)
+  })
+
+  it('returns focus to Resume access when permission is denied and status is unchanged', async () => {
+    const { deps } = makeFakeDeps({
+      loadRootHandle: async () => ({}) as FileSystemDirectoryHandle,
+      checkPermission: async () => 'prompt',
+      requestPermission: async () => 'denied',
+    })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FolderPicker />
+      </FileSearchStoreProvider>,
+    )
+    const button = await screen.findByRole('button', { name: /resume access/i })
+    await userEvent.click(button)
+    await waitFor(() => expect(button).toHaveFocus())
   })
 })

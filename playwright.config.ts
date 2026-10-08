@@ -12,11 +12,40 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     permissions: ['clipboard-read', 'clipboard-write'],
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 30000,
-  },
+  projects: [
+    // Chromium has the real File System Access API, so it never takes the fallback path.
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: /(fallback|csp)\.spec\.ts/ },
+    // Clipboard permissions are Chromium-only; Firefox/WebKit reject them.
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'], permissions: [] },
+      testMatch: /fallback\.spec\.ts/,
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'], permissions: [] },
+      testMatch: /fallback\.spec\.ts/,
+    },
+    // Production build served by vite preview: the CSP meta only exists in built output.
+    {
+      name: 'csp',
+      testMatch: /csp\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:4173' },
+    },
+  ],
+  webServer: [
+    {
+      command: 'npm run dev',
+      url: 'http://localhost:5173',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30000,
+    },
+    {
+      command: 'npm run build && npx vite preview --port 4173 --strictPort',
+      url: 'http://localhost:4173',
+      // Never reuse: a stale preview would serve an old dist and the CSP test would check the wrong build.
+      reuseExistingServer: false,
+      timeout: 120000,
+    },
+  ],
 })

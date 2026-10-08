@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { FileSearchStoreProvider } from '../store/FileSearchStoreProvider'
@@ -16,6 +16,14 @@ function renderPanel() {
 }
 
 describe('FiltersPanel', () => {
+  // Regression: FINDING-009 — "Click Refresh to apply" showed when no Refresh button existed
+  // Found by /design-review on 2026-10-03
+  it('says ignore-pattern edits apply to the next scan when no folder is loaded', () => {
+    renderPanel()
+    expect(screen.getByText(/applies to the next scan/i)).toBeInTheDocument()
+    expect(screen.queryByText(/click refresh to apply/i)).not.toBeInTheDocument()
+  })
+
   it('updates the extension filter', async () => {
     const { worker } = renderPanel()
     await userEvent.type(screen.getByLabelText(/extension/i), 'pdf')
@@ -67,11 +75,21 @@ describe('FiltersPanel', () => {
     expect(screen.getByLabelText(/modified before/i)).toHaveAttribute('type', 'date')
   })
 
-  it('shows the default ignore patterns and a hint that changes need Refresh', () => {
-    renderPanel()
+  it('shows the default ignore patterns and, with a folder loaded, a hint that changes need Refresh', async () => {
+    const { deps, worker } = makeFakeDeps({
+      loadRootHandle: async () => ({ name: 'root' }) as FileSystemDirectoryHandle,
+      loadEntries: async () => [],
+    })
+    render(
+      <FileSearchStoreProvider deps={deps}>
+        <FiltersPanel />
+      </FileSearchStoreProvider>,
+    )
     expect(screen.getByText('node_modules')).toBeInTheDocument()
     expect(screen.getByText('.git')).toBeInTheDocument()
-    expect(screen.getByText(/click refresh to apply/i)).toBeInTheDocument()
+    await waitFor(() => expect(worker.posted.some((m) => m.type === 'restore')).toBe(true))
+    act(() => worker.emit({ type: 'restore-complete', count: 0 }))
+    expect(await screen.findByText(/click refresh to apply/i)).toBeInTheDocument()
   })
 
   it('adding a pattern updates the list and does not post a scan message', async () => {
@@ -87,5 +105,12 @@ describe('FiltersPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: /remove node_modules/i }))
 
     expect(screen.queryByText('node_modules')).not.toBeInTheDocument()
+  })
+
+  it('removing an ignore chip moves focus to the add-pattern input', async () => {
+    renderPanel()
+    const [remove] = screen.getAllByRole('button', { name: /^remove /i })
+    await userEvent.click(remove)
+    expect(screen.getByLabelText('Add ignore pattern')).toHaveFocus()
   })
 })

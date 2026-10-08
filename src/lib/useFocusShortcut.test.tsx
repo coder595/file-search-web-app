@@ -42,4 +42,32 @@ describe('useFocusShortcut', () => {
 
     expect(target).toHaveFocus()
   })
+
+  it('typing / in the focused target keeps the character', async () => {
+    const { getByLabelText } = render(<Harness />)
+    const target = getByLabelText('target') as HTMLInputElement
+    target.focus()
+
+    await userEvent.keyboard('a/b')
+
+    expect(target.value).toBe('a/b')
+  })
+
+  it('does not hijack / inside a contenteditable element', async () => {
+    const { getByLabelText, getByTestId } = render(
+      <>
+        <Harness />
+        <div data-testid="editable" tabIndex={0} />
+      </>,
+    )
+    const editable = getByTestId('editable')
+    // jsdom does not implement isContentEditable; stub it.
+    Object.defineProperty(editable, 'isContentEditable', { value: true })
+    editable.focus()
+
+    await userEvent.keyboard('/')
+
+    expect(editable).toHaveFocus()
+    expect(getByLabelText('target')).not.toHaveFocus()
+  })
 })

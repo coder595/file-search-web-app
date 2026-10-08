@@ -22,6 +22,7 @@ export function FallbackFileList() {
   const [entries, setEntries] = useState<IndexEntry[]>([])
   const [query, setQuery] = useState('')
   const [scanning, setScanning] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   useFocusShortcut('/', inputRef)
 
@@ -41,11 +42,15 @@ export function FallbackFileList() {
 
   async function pickFolder() {
     setScanning(true)
+    setError(null)
     try {
       const files = await directoryOpen({ recursive: true })
       setEntries(filesToEntries(files as File[]))
     } catch (err) {
-      if (!isAbortError(err)) throw err
+      if (!isAbortError(err)) {
+        console.error(err)
+        setError('Could not read that folder. Please try again.')
+      }
     } finally {
       setScanning(false)
     }
@@ -53,24 +58,29 @@ export function FallbackFileList() {
 
   return (
     <div className="flex h-full flex-col gap-3">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => void pickFolder()}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
           Select Folder (read-only)
         </button>
+        {error && (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            {error}
+          </p>
+        )}
         {scanning && <p className="text-sm text-gray-600 dark:text-gray-300">Scanning…</p>}
         {!scanning && entries.length > 0 && (
           <input
             ref={inputRef}
-            role="searchbox"
+            aria-label="Search files by name"
             type="search"
             value={query}
             placeholder="Search files by name"
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full max-w-sm rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400"
+            className="w-full max-w-sm rounded border border-gray-500 px-3 py-2 text-sm dark:bg-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
           />
         )}
       </div>

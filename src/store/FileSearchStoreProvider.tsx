@@ -1,9 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react'
-import { useStore } from 'zustand'
-import type { StoreApi } from 'zustand/vanilla'
-import { createFileSearchStore, defaultFileSearchDeps, type FileSearchDeps, type FileSearchState } from './fileSearchStore'
-
-const FileSearchStoreContext = createContext<StoreApi<FileSearchState> | null>(null)
+import { useEffect, useMemo, type ReactNode } from 'react'
+import { createFileSearchStore, defaultFileSearchDeps, type FileSearchDeps } from './fileSearchStore'
+import { FileSearchStoreContext } from './useFileSearchStore'
 
 /**
  * Provides one shared store instance to the component tree. Defaults to the
@@ -22,12 +19,4 @@ export function FileSearchStoreProvider({
     void store.getState().init()
   }, [store])
   return <FileSearchStoreContext.Provider value={store}>{children}</FileSearchStoreContext.Provider>
-}
-
-export function useFileSearchStore<T>(selector: (state: FileSearchState) => T): T {
-  const store = useContext(FileSearchStoreContext)
-  if (!store) {
-    throw new Error('useFileSearchStore must be used within a FileSearchStoreProvider')
-  }
-  return useStore(store, selector)
 }

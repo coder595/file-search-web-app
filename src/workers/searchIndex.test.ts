@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it } from 'vitest'
 import { SearchIndex } from './searchIndex'
 import type { IndexEntry } from '../lib/types'
