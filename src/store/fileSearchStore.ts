@@ -148,13 +148,28 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
       } else if (msg.type === 'query-error') {
         // A failed query is not fatal: keep status and results; free the slot so the next query can go out.
         console.error('Search query failed', msg.message)
-        resetQueries()
+        queryInFlight = false
+        if (queryDirty) {
+          queryDirty = false
+          postQuery()
+        }
       } else if (msg.type === 'error') {
         resetQueries()
         set({ status: 'error', error: msg.message })
       }
     }
     attachHandlers(worker)
+
+    // Swap in a fresh worker (the old one may be dead, e.g. its script failed to load).
+    function replaceWorker() {
+      worker.onmessage = null
+      worker.onerror = null
+      if (debounceTimer) clearTimeout(debounceTimer)
+      worker.terminate()
+      resetQueries()
+      worker = deps.createWorker()
+      attachHandlers(worker)
+    }
 
     async function restoreFromCache(handle: FileSystemDirectoryHandle) {
       const cached = await deps.loadEntries()
@@ -241,6 +256,8 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
           if (!isAbortError(err)) set({ status: 'error', error: errorText(err) })
           return
         }
+        scanId++ // invalidate older scans now, before the awaits below, so their late save failures are stale
+        if (get().status === 'error') replaceWorker()
         set({ notice: undefined })
         try {
           await deps.clearCache()
@@ -258,13 +275,7 @@ export function createFileSearchStore(deps: FileSearchDeps = defaultFileSearchDe
       },
 
       async retry() {
-        worker.onmessage = null
-        worker.onerror = null
-        if (debounceTimer) clearTimeout(debounceTimer)
-        worker.terminate()
-        resetQueries()
-        worker = deps.createWorker()
-        attachHandlers(worker)
+        replaceWorker()
         set({ error: undefined })
         const handle = get().rootHandle
         if (!handle) {

@@ -620,6 +620,66 @@ describe('createFileSearchStore', () => {
     })
   })
 
+  describe('cycle 3 [review]', () => {
+    const handle = {} as FileSystemDirectoryHandle
+
+    it('selectFolder after a worker crash scans on a NEW worker', async () => {
+      const { worker, latestWorker, deps } = makeDeps({ showDirectoryPicker: vi.fn().mockResolvedValue(handle) })
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      worker.crash()
+      expect(store.getState().status).toBe('error')
+      await store.getState().selectFolder()
+      expect(latestWorker()).not.toBe(worker)
+      expect(latestWorker().posted.some((m) => m.type === 'scan')).toBe(true)
+      expect(worker.posted.some((m) => m.type === 'scan')).toBe(false)
+    })
+
+    it('query-error sends the follow-up query that was queued while the failed one was in flight', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const { worker, deps } = makeDeps()
+      const store = createFileSearchStore(deps)
+      await store.getState().init()
+      store.getState().setFilters({ query: 'a' })
+      await vi.advanceTimersByTimeAsync(130) // query 1 in flight
+      store.getState().setFilters({ query: 'ab' })
+      await vi.advanceTimersByTimeAsync(130) // coalesced: dirty
+      const before = worker.posted.filter((m) => m.type === 'query').length
+      worker.emit({ type: 'query-error', message: 'boom' })
+      const queries = worker.posted.filter((m) => m.type === 'query')
+      expect(queries.length).toBe(before + 1)
+      expect(queries.at(-1)).toEqual({ type: 'query', filters: expect.objectContaining({ query: 'ab' }) })
+      spy.mockRestore()
+    })
+
+    it('an older scan save failure landing while selectFolder awaits its cache writes is stale', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      let rejectSave!: (e: Error) => void
+      let releaseClear!: () => void
+      const { worker, deps, store } = await (async () => {
+        const ctx = makeDeps({
+          showDirectoryPicker: vi.fn().mockResolvedValue(handle),
+          saveEntries: vi.fn().mockReturnValue(new Promise<void>((_, rej) => (rejectSave = rej))),
+        })
+        const store = createFileSearchStore(ctx.deps)
+        await store.getState().init()
+        await store.getState().selectFolder()
+        return { ...ctx, store }
+      })()
+      worker.emit({ type: 'scan-complete', scanned: 0, skipped: 0, ignored: 0, entries: [] })
+      vi.mocked(deps.clearCache).mockReturnValue(new Promise<void>((r) => (releaseClear = r)))
+      const pick = store.getState().selectFolder() // now awaiting clearCache
+      await vi.advanceTimersByTimeAsync(0)
+      rejectSave(new Error('late'))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(deps.clearEntries).not.toHaveBeenCalled()
+      expect(store.getState().notice).toBeUndefined()
+      releaseClear()
+      await pick
+      spy.mockRestore()
+    })
+  })
+
   describe('review hardening [B2 fix wave]', () => {
     const handle = {} as FileSystemDirectoryHandle
     const quota = Object.assign(new Error('full'), { name: 'QuotaExceededError' })
