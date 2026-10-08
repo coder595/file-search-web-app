@@ -52,6 +52,21 @@
 **Priority:** P3
 **Depends on:** None
 
+### Phase 4 review follow-ups (skipped by owner, 2026-10-04)
+
+**What:** Five small robustness gaps from the Phase 4 `/review` that were consciously deferred:
+1. Skip `saveEntries` for a scan whose root handle failed to persist (`src/store/fileSearchStore.ts`, `selectFolder`), so an old root can't be paired with new entries on reload.
+2. Add a `worker.onmessageerror` backstop that resets the query flags, and make `retry()` set its status synchronously so a double-click can't run it twice.
+3. Show "No results." only for a loaded folder in every status (`src/components/ResultsList.tsx`), clear a stale save notice after a later successful save, and `console.error` a thrown `requestPermission` in `resumeAccess`.
+4. Stronger keyboard-selected row cue in `VirtualizedEntryTable.tsx` (e.g. `ring-1 ring-inset ring-blue-600 dark:ring-blue-400`) for dark and forced-colors modes.
+5. Residual from review cycle 3: a worker crash during `selectFolder`'s `clearCache`/`saveRootHandle` await can still leave status on `scanning`; move the `status === 'error'` check and `replaceWorker()` to just before `startScan`.
+
+**Why:** Each is a low-probability edge case; none blocks the Phase 4 merge.
+
+**Effort:** S each
+**Priority:** P3
+**Depends on:** None
+
 ## Feature
 
 ### Skip entries that vanish mid-scan instead of failing the whole scan

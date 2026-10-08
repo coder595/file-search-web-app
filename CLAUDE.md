@@ -7,9 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm run dev                              # dev server at http://localhost:5173
 npm run build                            # tsc -b && vite build (type-checks, then builds)
-npm run lint                             # oxlint
+npm run lint                             # oxlint --deny-warnings (any warning fails, same as CI)
 
-npm test                                 # vitest run (full unit/component suite)
+npm test                                 # vitest run (pure-logic tests use `// @vitest-environment node`)
 npx vitest run src/path/to/file.test.ts  # single test file
 npx vitest run -t "test name substring"  # single test by name
 npm run test:watch                       # vitest in watch mode
@@ -21,7 +21,7 @@ npx playwright test tests/e2e/foo.spec.ts -g "test name"   # single E2E test
 ./scripts/package-portable.sh            # build + zip a no-npm-install portable release
 ```
 
-Playwright runs Chromium only and has `reuseExistingServer` set outside CI, so a stale `npm run dev` already on :5173 gets tested instead of a fresh one. Kill it first if the results look wrong.
+Playwright has four projects: `chromium` (main specs), `firefox` and `webkit` (only `fallback.spec.ts`, real feature detection, no clipboard permissions), and `csp` (only `csp.spec.ts`, against `vite preview` on :4173). Every Playwright run also starts `npm run build && vite preview` (never reused, so the CSP test always checks a fresh build). The dev server on :5173 has `reuseExistingServer` set outside CI, so a stale `npm run dev` gets tested instead of a fresh one; kill it first if results look wrong (`fuser -k 5173/tcp 4173/tcp`). WebKit needs system libraries some Linux distros lack; CI always runs it.
 
 Vitest excludes `tests/e2e/**` (Playwright specs use `@playwright/test`, not Vitest — they are not interchangeable runners; do not add Playwright specs under `src/`).
 
@@ -42,13 +42,13 @@ All directory walking and searching happens in a single dedicated Web Worker (`s
 - **Querying** (`filters.ts`, `sort.ts`, `queryParse.ts`): search + filter + sort all happen here, in the worker, so the UI never re-implements "what counts as a match" — it just renders whatever `query-result` messages send back. Search is live during an in-progress scan, not blocked until it finishes.
 - **Restoring** (`restore()`): rebuilds the FlexSearch index from IndexedDB-cached entries on reload with no directory walk, for instant reopen.
 
-The worker message contract (`WorkerInMessage`/`WorkerOutMessage`) is the seam between `src/store/fileSearchStore.ts` and `scan.worker.ts` — read both together when changing it.
+The worker message contract (`WorkerInMessage`/`WorkerOutMessage`) is the seam between `src/store/fileSearchStore.ts` and `scan.worker.ts` — read both together when changing it. Each `scan` carries a `scanId` that the worker echoes on `progress`/`scan-complete`/scan `error`; the store drops messages from an older scan. `restore` answers `restore-complete` (with the entry count). A failed query posts `query-error` (non-fatal); scan/restore failures post `error`, which puts the store in its `'error'` status (Retry or "Choose a different folder" swap in a fresh worker via `replaceWorker()`). Queries are coalesced: at most one is in flight, and extra requests collapse into one follow-up with the latest filters, so a 50k-entry scan never queues hundreds of full-result clones.
 
 **Ignore patterns** (`src/lib/ignorePatterns.ts`) skip whole directories *during the walk*, not as a post-hoc query filter — `walk.ts` checks each directory name against the set before recursing into it, so an ignored folder is never indexed at all (see the `scanned`/`skipped`/`ignored` counts in `scan-complete`). The pattern list is exact-name matching only (no globs), persisted in `localStorage` independent of the IndexedDB-cached index, and flows store → `scan` worker message → `walk.ts` on every scan/refresh.
 
 ### Store and dependency injection (`src/store/`)
 
-`fileSearchStore.ts` is a vanilla Zustand store (not the React-hook `create()`) that orchestrates the worker, `src/lib/db.ts` (IndexedDB via `idb-keyval`), and `src/lib/permission.ts` (the File System Access permission flow). Every browser-API dependency is injected via a `FileSearchDeps` object (`createWorker`, `showDirectoryPicker`, `checkPermission`, `loadRootHandle`, etc.) with `defaultFileSearchDeps` as the real implementation. `FileSearchStoreProvider.tsx` provides one shared store instance via React context and calls `init()` on mount.
+`fileSearchStore.ts` is a vanilla Zustand store (not the React-hook `create()`) that orchestrates the worker, `src/lib/db.ts` (IndexedDB via `idb-keyval`), and `src/lib/permission.ts` (the File System Access permission flow). Every browser-API dependency is injected via a `FileSearchDeps` object (`createWorker`, `showDirectoryPicker`, `checkPermission`, `loadRootHandle`, etc.) with `defaultFileSearchDeps` as the real implementation. `FileSearchStoreProvider.tsx` provides one shared store instance via React context and calls `init()` on mount; the context and the `useFileSearchStore` hook live in `useFileSearchStore.ts` (split out for fast refresh). Status values: `empty`, `fallback`, `needs-permission`, `scanning`, `restoring`, `ready`, `error`.
 
 This DI pattern exists because none of `Worker`, `IndexedDB`, or `showDirectoryPicker()` exist in jsdom — component tests inject `makeFakeDeps()` (`src/test/fakeFileSearchDeps.ts`, a `FakeWorker` + mocked storage) instead of hitting real browser APIs. `src/test/setup.ts` stubs `Worker`, `ResizeObserver`, and `matchMedia` globally so a component tree can at least mount without crashing even when a test doesn't care about worker/theme behavior.
 
@@ -68,7 +68,7 @@ Zips `dist/` plus `scripts/run.sh`/`run.bat` into a build that needs no `npm ins
 
 ## Process notes
 
-`plan.md` is the source-of-truth design doc (architecture, data model, phase-by-phase build log, and a running `## GSTACK REVIEW REPORT` — read it before making architectural changes). `PROGRESS.md` tracks phase status and the production-readiness gate. `TODOS.md` holds deferred, explicitly-scoped-out work — check it before adding speculative features. `IMPROVEMENT_PLAN.md` is the proposed Phase 4 plan (CI, CSP, quota handling, a11y). It is not yet approved, so don't execute it unless asked. `prompt.md` is the original build prompt and is kept for history only.
+`plan.md` is the source-of-truth design doc (architecture, data model, phase-by-phase build log, and a running `## GSTACK REVIEW REPORT` — read it before making architectural changes). `PROGRESS.md` tracks phase status and the production-readiness gate. `TODOS.md` holds deferred, explicitly-scoped-out work — check it before adding speculative features. `IMPROVEMENT_PLAN.md` is the Phase 4 plan (CI, CSP, quota handling, a11y) with its eng-review decision ledger; it was approved and executed on `improve/phase-4`. `prompt.md` is the original build prompt and is kept for history only.
 
 ## Skill routing
 
