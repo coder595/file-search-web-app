@@ -382,6 +382,19 @@ Phase 3 scope per Section 15/10: ignore patterns — skip noisy directories (`no
 - `ScanController`'s generation-counter cancellation — untouched; threading a by-value ignore-set through `scan()`/`walkDirectory()` doesn't interact with it (outside-voice: no findings on this scheme).
 - `FiltersPanel.tsx`'s existing `labelClass`/`inputClass` styling primitives and layout — reused for the new ignore-list section, no new component.
 
+## 26. Phase 4 Build Log (hardening, `IMPROVEMENT_PLAN.md`)
+
+Executed on branch `improve/phase-4` (base `ce4a29c`) with subagent-driven development: one fresh implementer per item, a task review after each, per-phase reviewer trio + `/ponytail-review`, and a final whole-branch review. Decisions, rulings and deferred minors were tracked in a session ledger; owner decisions R1–R9 live in `IMPROVEMENT_PLAN.md`.
+
+- **A (process):** branch + PRs; lint warnings fixed and `--deny-warnings`; patch/minor devDependency bumps; pure-logic Vitest files on the node environment (6.2 s → 3.5 s); GitHub Actions gate.
+- **B (robustness):** IndexedDB save failures caught with a visible notice and a re-scan on reload instead of an empty restore; worker scan/restore errors reach the UI (`error` status, Retry with a fresh worker); `restoring` status + `restore-complete` message (also D2's indicator); silent-failure sweep; real Firefox/WebKit fallback E2E with a folder pick.
+- **C (security):** build-only CSP meta (`connect-src 'none'`, `worker-src 'self'`, no `unsafe-inline`), verified by a `vite preview` smoke project including a negative `connect-src` probe.
+- **D (UX/a11y):** listbox focus ring + name, valid `useId` option ids, transition-only live region, focus management, contrast/target-size/reflow fixes, empty-state and error copy; `/` shortcut and virtualization scroll-container bugs fixed.
+- **E (performance):** benchmark vs 2026-09-16 (no regressions); 50k-scan profiling found an O(n²) clone storm, fixed by query coalescing (one in flight, latest filters win).
+- **Review-driven fixes:** `scanId` on scan messages so a stale `scan-complete` can't be saved under a new folder; non-fatal `query-error`; "Choose a different folder" in the error state (with worker replacement); restore shows the real count.
+
+**Deviations:** WebKit verified only in CI (cannot launch locally). Codex outside voices unavailable throughout (model unsupported on the account). `/cso` partial (no scanner images). Deferred: header-based CSP for the worker + `frame-ancestors`, glob ignore rules, TypeScript 7, the skipped review follow-ups — all in `TODOS.md`.
+
 ## GSTACK REVIEW REPORT
 
 | Review | Trigger | Why | Runs | Status | Findings |

@@ -6,6 +6,7 @@
 - **Phase 1 (MVP):** done — every Section 17 item cleared except `/review` (structurally doesn't apply to a from-scratch first commit with no prior state to diff against; will run on the next feature branch)
 - **Phase 2 (Polish):** done — keyboard nav (ARIA listbox, virtualization-aware), dark mode (system-preference default + manual toggle), fallback UX fixes (cancel handling, loading state) all shipped and tested. `/review` still structurally doesn't apply (all work continues to land on `master` directly, no feature branch); `/cso` re-run scoped to the diff, no new findings.
 - **Phase 3 (Roadmap):** done — ignore patterns (skip `node_modules`/`.git`/build output/caches/venvs during scan) shipped and tested.
+- **Phase 4 (Hardening, `IMPROVEMENT_PLAN.md`):** done on branch `improve/phase-4` — CI gate, error/quota recovery, worker error surfacing + Retry, build-only CSP, real Firefox/WebKit fallback E2E, WCAG 2.2 fixes, virtualization + query-coalescing performance fixes. First phase reviewed as a real branch diff.
 
 ## Phase 1 functional acceptance criteria (plan.md, "Acceptance criteria for Phase 1")
 
@@ -59,6 +60,25 @@
 - [x] `npm audit` clean — 0 vulnerabilities (no new dependencies).
 - [x] `/document-release` (gstack) — not run as its own skill invocation; this PROGRESS.md and `plan.md` (Section 25 + rewritten `## GSTACK REVIEW REPORT`) are current as of this commit. README.md not yet updated with an ignore-patterns section — pending, see below.
 - [ ] `/ship` (gstack) — not yet run for Phase 3; will commit and push at the end of this phase, including the still-unpushed `bf90cee` (CLAUDE.md skill-routing commit) from the previous session.
+
+## Section 17 production-readiness gate — Phase 4
+
+- [x] `/plan-eng-review` (gstack) on `IMPROVEMENT_PLAN.md` + `ecc:architect` + agency Software Architect — 9 findings resolved with owner answers (R1–R9), 1 scope cut (`storage.estimate()` warning); folded into the plan's Amended plan + Decision ledger. Codex outside voice unavailable (account can't use the default model).
+- [x] TDD (RED captured before GREEN) for every behavioral change via `ecc:tdd-guide` / agency Frontend Developer; **193 tests, 98.06% statements / 93.87% branches** (`npm run test:coverage`, up from 123 tests).
+- [x] CI: `.github/workflows/ci.yml` — lint (deny-warnings) → coverage → build → Playwright (chromium, firefox, webkit, csp), `contents: read`, actions pinned to SHAs. Not yet run on GitHub (branch not pushed before `/ship`).
+- [x] Gate (local, final tree): `npm run lint` 0 warnings · `npm run test:coverage` 193/193 · `npm run build` OK · Playwright chromium + firefox + csp 12/12. **WebKit cannot launch on this Arch host** (missing system libraries); it runs only in CI.
+- [x] Per-phase reviews: `ecc:react-reviewer` + `ecc:typescript-reviewer` + `ecc:silent-failure-hunter` + `/ponytail-review` after every phase; findings fixed in follow-up waves or ruled on in the SDD ledger.
+- [x] `/qa` (gstack, headless `$B`) live after Phases B and D — 4/4 and 6/6 probes passed; no Aside on this host.
+- [x] Design: impeccable audit 15/20, `ecc:a11y-architect` WCAG 2.2 audit, ui-ux-pro-max + frontend-design checks (`ecc:taste` N/A: music-video skill), `/design-review` 11/11 fixes. **Lighthouse accessibility 95 → 100**, best-practices 100 (CLI + Playwright Chromium; the chrome-devtools MCP had no Chrome).
+- [x] `/benchmark` vs 2026-09-16: load 43 → 17 ms, JS 116.2 → 117.8 KB gzip, CSS +0.4 KB (warning), rebuild 25k +26% (Node runtime noise; FlexSearch unchanged). Report: `.gstack/benchmark-reports/2026-10-03-benchmark.md`.
+- [x] E2 profiling: a 50k-entry scan caused an O(n²) result-clone storm ("Maximum update depth" on the branch, a full page freeze on master); fixed by coalescing worker queries. A pre-existing Phase 1 bug (listbox not a bounded scroll container, so all rows rendered) was found and fixed in D3.
+- [x] `/review` (gstack) on the branch diff — 5 specialists + Red Team + adversarial + SDD final whole-branch review; 3 fix cycles, converged, 0 unresolved defects. Owner-skipped findings recorded in `TODOS.md` ("Phase 4 review follow-ups").
+- [x] `/cso` (gstack) diff-scoped — **partial** (no qualified gitleaks/osv/zizmor/semgrep images on this host; secrets/deps reviewed manually), **0 supported findings**. Known gap: the meta CSP does not cover the scan worker and cannot set `frame-ancestors` (TODOS).
+- [x] `ecc:security-reviewer` — no Critical/High/Medium; CI actions SHA-pinned as a result.
+- [x] `npm audit` clean (no runtime dependency added; devDependency patch/minor bumps only).
+- [x] `/document-release` — README (troubleshooting, CSP note, scripts), CLAUDE.md (Playwright projects, worker contract, statuses), TODOS updated.
+- [ ] `/ship` — pending at time of writing (VERSION/CHANGELOG + PR).
+- [ ] F4 public deploy — not started; needs owner approval.
 
 ## Deviations from plan.md
 
