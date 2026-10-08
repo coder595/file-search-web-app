@@ -78,7 +78,7 @@
 - [x] `npm audit` clean (no runtime dependency added; devDependency patch/minor bumps only).
 - [x] `/document-release` — README (troubleshooting, CSP note, scripts), CLAUDE.md (Playwright projects, worker contract, statuses), TODOS updated.
 - [x] `/ship` — v0.1.0.0: first VERSION + CHANGELOG.md, branch pushed, PR opened against `master` (squash-merge recommended; e551d4c/a7fec01 are partial commits on their own).
-- [ ] F4 public deploy — not started; needs owner approval.
+- [x] F4 public deploy — approved by owner 2026-10-08. Vercel project `file-search-web-app` (team sama-khazaen), linked to GitHub so pushes to `master` auto-deploy. Production: https://file-search-web-app-two.vercel.app. Live smoke: 200, CSP meta present, worker loads, 0 third-party requests, 0 console errors. Header CSP/`frame-ancestors` still open (TODOS.md).
 
 ## Deviations from plan.md
 
