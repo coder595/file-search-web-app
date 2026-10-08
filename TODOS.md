@@ -71,6 +71,18 @@
 **Priority:** P3
 **Depends on:** None
 
+### Verify the read-only folder picker opens in real Safari
+
+**What:** On a Mac, click "Select Folder (read-only)" in Safari and confirm the native folder dialog opens.
+
+**Why:** In CI, Playwright's WebKit never raised a `filechooser` event for browser-fs-access's hidden `<input webkitdirectory>` + `showPicker()`, and the page stayed on "Scanning…". The E2E spec now fills that input directly, so it no longer proves the dialog opens in WebKit. This is probably a Playwright quirk, but it is unverified on real Safari.
+
+**Context:** If Safari is affected, call `input.click()` from the button's own handler instead of going through `directoryOpen()`.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** A Mac with Safari
+
 ## Completed
 
 ### IndexedDB storage quota/eviction handling

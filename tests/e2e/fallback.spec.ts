@@ -8,9 +8,10 @@ test('real fallback: banner, folder pick, listing and search', async ({ page }) 
   await page.goto('/')
   await expect(page.getByRole('status').filter({ hasText: /read-only/i })).toContainText(/read-only fallback mode/i)
 
-  const chooser = page.waitForEvent('filechooser')
+  // browser-fs-access appends a hidden <input webkitdirectory> and calls showPicker();
+  // Playwright's WebKit doesn't raise 'filechooser' for that, so fill the input directly.
   await page.getByRole('button', { name: /select folder \(read-only\)/i }).click()
-  await (await chooser).setFiles(FIXTURE)
+  await page.locator('input[type=file][webkitdirectory]').setInputFiles(FIXTURE)
 
   const rows = page.getByRole('listbox').getByRole('option')
   await expect(rows).toHaveCount(3)
